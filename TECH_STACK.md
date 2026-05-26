@@ -34,7 +34,7 @@ Eloquent maps PHP model classes to database tables. The project currently uses:
 - `User` - authenticated users.
 - `Idea` - user-owned idea records.
 
-The `Idea` model stores an idea name, description, status, owner, generated roadmap sections, and JSON checklist. JSON roadmap columns are cast to PHP arrays in `app/Models/Idea.php`.
+The `Idea` model stores an idea name, description, status, owner, generated roadmap sections, JSON checklist, and JSON Action Plan tasks. JSON roadmap, checklist, and task columns are cast to PHP arrays in `app/Models/Idea.php`.
 
 ### Laravel Migrations
 Database schema is managed with migrations. The ideas table has evolved to include:
@@ -44,6 +44,7 @@ Database schema is managed with migrations. The ideas table has evolved to inclu
 - Idea detail support via `name`.
 - Editable checklist storage via JSON checklist items.
 - Generated target user, core features, and MVP scope storage via JSON columns.
+- Action Plan task storage via the `action_tasks` JSON column.
 
 ---
 
@@ -73,7 +74,7 @@ resources/views/app.blade.php
 It provides the HTML shell for Inertia and loads Vite assets.
 
 ### React `^19.2`
-React powers the client-side page components, forms, inline editing, checklist interactions, and reusable UI components.
+React powers the client-side page components, forms, inline editing, checklist interactions, Action Plan category/phase navigation, task modals, and reusable UI components.
 
 ### `@inertiajs/react` `^3.2`
 The React adapter for Inertia. It provides:
@@ -89,7 +90,7 @@ The React adapter for Inertia. It provides:
 The app uses Tailwind CSS v4 through the official Vite plugin. Utility classes are used in React components and the Inertia root view.
 
 ### `lucide-react` `^1.16`
-Icon library used for navigation, auth screens, idea cards, checklist actions, and static pages.
+Icon library used for navigation, auth screens, idea cards, checklist actions, Action Plan cards/modals, and static pages.
 
 ### Instrument Sans via Bunny Fonts
 The primary font is loaded through the Laravel Vite plugin's `bunny()` helper and configured in `resources/css/app.css`.

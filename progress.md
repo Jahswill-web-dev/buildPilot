@@ -4,6 +4,130 @@ A running technical record of every feature built, what files were changed, and 
 
 ---
 
+## Feature 5 - Action Plan Tasks, Categories, Phases, and Task Modals
+**Date:** 2026-05-26
+**Status:** Complete
+
+---
+
+### Overview
+
+Added an Action Plan workflow after the generated MVP scope on the idea detail page. The first implementation uses local fallback task data rather than AI generation, but it stores the tasks on each idea as JSON so the later AI integration can replace the local task source without redesigning the UI.
+
+The current task flow is:
+
+```text
+Idea detail
+  -> Action Plan preview
+  -> Action Plan page
+  -> Category tabs
+  -> Phase cards
+  -> Dedicated phase page
+  -> Task cards
+  -> Task detail modal
+```
+
+---
+
+### What Was Built
+
+#### 1. Action task storage and normalization
+
+Added `action_tasks` JSON storage to ideas with `database/migrations/2026_05_26_000001_add_action_tasks_to_ideas_table.php`.
+
+Added `app/Services/ActionTasks/ActionTasks.php` to provide:
+
+- local fallback task content
+- task status normalization: `pending`, `completed`
+- task categories: `product`, `marketing`, `validation`
+- human phase names and URL-safe `phaseSlug` values
+- priority normalization: `High`, `Medium`, `Low`
+- backward-compatible defaults for older stored task shapes
+
+New ideas are seeded with fallback action tasks from `IdeaController`.
+
+---
+
+#### 2. Action Plan routes and controller
+
+Added `app/Http/Controllers/IdeaTaskController.php`.
+
+Routes added:
+
+```text
+GET   /ideas/{idea}/tasks
+GET   /ideas/{idea}/tasks/{category}/{phaseSlug}
+PATCH /ideas/{idea}/tasks/{taskId}
+```
+
+The controller authorizes idea ownership, returns Inertia pages for the task overview and phase pages, and persists task status changes back into the idea's `action_tasks` JSON.
+
+---
+
+#### 3. Idea detail Action Plan preview
+
+Updated `resources/js/Pages/Ideas/Show.jsx` to place an Action Plan preview after MVP Scope.
+
+The preview shows the first few task cards, completion progress, and a link to the full Action Plan page.
+
+---
+
+#### 4. Category and phase task overview
+
+Added/updated `resources/js/Pages/Ideas/Tasks.jsx`.
+
+The page now has three category tabs:
+
+- Product tasks
+- Marketing tasks
+- Market validation
+
+Within the selected category, tasks are grouped into phase cards. Each phase card shows total, completed, and open counts. Opening a phase card navigates to the dedicated phase page.
+
+---
+
+#### 5. Dedicated phase page and task modal
+
+Added `resources/js/Pages/Ideas/TaskPhase.jsx`.
+
+The phase page shows the tasks for one category/phase in Pending and Completed columns. Clicking a task opens a detail modal.
+
+Added shared task UI:
+
+- `resources/js/Components/ActionTaskRow.jsx`
+- `resources/js/Components/ActionTaskModal.jsx`
+
+The modal shows task category, phase, priority, status, detail copy, next action guidance, and a status update button.
+
+---
+
+#### 6. Tests
+
+Added `tests/Unit/ActionTasksTest.php` and extended `tests/Feature/IdeaAuthorizationTest.php` for:
+
+- fallback task shape
+- categories and phase slugs
+- stored task normalization
+- task overview access
+- phase page access
+- task status updates
+- invalid status validation
+- missing task IDs
+- authorization failures
+
+---
+
+### Verification
+
+```text
+npm run build
+  -> Passed
+```
+
+PHP tests could not be run from the current shell because `php` and `composer` were not available on PATH.
+
+---
+
 ## Feature 4 - Laravel + Inertia React Frontend Migration
 **Date:** 2026-05-24
 **Status:** Complete
