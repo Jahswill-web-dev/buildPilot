@@ -1,0 +1,133 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Idea;
+use App\Services\Ai\RoadmapGenerator;
+use App\Services\ActionTasks\ActionTasks;
+use App\Services\Checklists\ChecklistItems;
+use App\Services\CoreFeatures\CoreFeatures;
+use App\Services\DesiredOutcomes\DesiredOutcome;
+use App\Services\MvpScopes\MvpScope;
+use App\Services\ProblemStatements\ProblemStatement;
+use App\Services\TargetUsers\TargetUserProfile;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class IdeaController extends Controller
+{
+    public function __construct(
+        private readonly ActionTasks $actionTasks,
+        private readonly ChecklistItems $checklistItems,
+        private readonly CoreFeatures $coreFeatures,
+        private readonly DesiredOutcome $desiredOutcome,
+        private readonly MvpScope $mvpScope,
+        private readonly ProblemStatement $problemStatement,
+        private readonly TargetUserProfile $targetUserProfile,
+    ) {
+    }
+
+    public function index(Request $request): Response
+    {
+        $ideas = $request->user()
+            ->ideas()
+            ->latest()
+            ->get()
+            ->map(fn (Idea $idea): array => $this->serializeIdeaSummary($idea));
+
+        return Inertia::render('Ideas/Index', [
+            'ideas' => $ideas,
+        ]);
+    }
+
+    public function store(Request $request, RoadmapGenerator $roadmapGenerator): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $roadmap = $roadmapGenerator->generate($validated['name'], $validated['description']);
+
+        $request->user()->ideas()->create([
+            'name' => $validated['name'],
+            'description' => $validated['description'],
+            'target_user' => $roadmap['target_user'],
+            'problem_statement' => $roadmap['problem_statement'],
+            'desired_outcome' => $roadmap['desired_outcome'],
+            'core_features' => $roadmap['core_features'],
+            'mvp_scope' => $roadmap['mvp_scope'],
+            'action_tasks' => $this->actionTasks->fallback(),
+            'checklist' => $roadmap['checklist'],
+            'state' => 'pending',
+        ]);
+
+        return redirect()->route('home')->with('success', 'Your roadmap has been generated!');
+    }
+
+    public function show(Idea $idea): Response
+    {
+        $this->authorizeOwner($idea);
+
+        return Inertia::render('Ideas/Show', [
+            'idea' => $this->serializeIdea($idea),
+        ]);
+    }
+
+    public function update(Request $request, Idea $idea): RedirectResponse
+    {
+        $this->authorizeOwner($idea);
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:120'],
+            'description' => ['sometimes', 'required', 'string', 'max:2000'],
+        ]);
+
+        $idea->update($validated);
+
+        return redirect()->route('ideas.show', $idea)->with('success', 'Idea updated.');
+    }
+
+    public function destroy(Idea $idea): RedirectResponse
+    {
+        $this->authorizeOwner($idea);
+
+        $idea->delete();
+
+        return redirect()->route('home')->with('success', 'Idea deleted.');
+    }
+
+    private function authorizeOwner(Idea $idea): void
+    {
+        abort_unless($idea->user_id === auth()->id(), 403);
+    }
+
+    private function serializeIdeaSummary(Idea $idea): array
+    {
+        return [
+            'id' => $idea->id,
+            'name' => $idea->name,
+            'description' => $idea->description,
+            'state' => $idea->state,
+            'createdAt' => $idea->created_at?->toISOString(),
+            'createdDate' => $idea->created_at?->format('M j, Y'),
+            'createdRelative' => $idea->created_at?->diffForHumans(),
+        ];
+    }
+
+    private function serializeIdea(Idea $idea): array
+    {
+        return [
+            ...$this->serializeIdeaSummary($idea),
+            'targetUser' => $this->targetUserProfile->normalizeStored($idea->target_user),
+            'problemStatement' => $this->problemStatement->normalizeStored($idea->problem_statement),
+            'desiredOutcome' => $this->desiredOutcome->normalizeStored($idea->desired_outcome),
+            'coreFeatures' => $this->coreFeatures->normalizeStored($idea->core_features),
+            'mvpScope' => $this->mvpScope->normalizeStored($idea->mvp_scope),
+            'actionTasks' => $this->actionTasks->normalizeStored($idea->action_tasks),
+            'checklist' => $this->checklistItems->normalizeStored($idea->checklist),
+        ];
+    }
+}
