@@ -7,7 +7,13 @@ const priorityStyles = {
     Low: 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200',
 };
 
-export default function ActionTaskRow({ ideaId, task, compact = false, onOpen = null }) {
+const categoryLabels = {
+    product: 'Product',
+    marketing: 'Marketing',
+    validation: 'Validation',
+};
+
+export default function ActionTaskRow({ ideaId, task, compact = false, onOpen = null, showCategory = false }) {
     const isCompleted = task.status === 'completed';
     const ContentWrapper = onOpen ? 'button' : 'div';
 
@@ -31,6 +37,11 @@ export default function ActionTaskRow({ ideaId, task, compact = false, onOpen = 
                     <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-zinc-400">
                         {task.phase}
                     </span>
+                    {showCategory ? (
+                        <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-200">
+                            {categoryLabels[task.category] ?? 'Product'}
+                        </span>
+                    ) : null}
                     <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${priorityStyles[task.priority] ?? priorityStyles.Medium}`}>
                         {task.priority}
                     </span>

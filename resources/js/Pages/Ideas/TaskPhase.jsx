@@ -16,9 +16,16 @@ const categoryLabels = {
     validation: 'Market validation',
 };
 
+const shortCategoryLabels = {
+    product: 'Product',
+    marketing: 'Marketing',
+    validation: 'Validation',
+};
+
 export default function TaskPhase({ idea, category, phase }) {
     const [selectedTask, setSelectedTask] = useState(null);
     const progress = taskProgress(phase.tasks);
+    const isGlobalPhase = !category;
 
     return (
         <AppLayout maxWidth="max-w-6xl">
@@ -38,11 +45,11 @@ export default function TaskPhase({ idea, category, phase }) {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                            {categoryLabels[category] ?? 'Product tasks'}
+                            {isGlobalPhase ? 'Phase tasks' : categoryLabels[category] ?? 'Product tasks'}
                         </p>
                         <h1 className="mt-2 break-words text-2xl font-semibold text-white">{phase.name}</h1>
                         <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-zinc-400">
-                            {idea.name}
+                            {isGlobalPhase ? `${idea.name} - product, marketing, and validation tasks` : idea.name}
                         </p>
                     </div>
                     <div className="flex-shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -51,6 +58,33 @@ export default function TaskPhase({ idea, category, phase }) {
                     </div>
                 </div>
             </header>
+
+            {(phase.description || phase.goal || phase.successCriteria) ? (
+                <section className="mt-6 grid gap-4 lg:grid-cols-3">
+                    {phase.description ? (
+                        <PhaseInfo title="Description" text={phase.description} />
+                    ) : null}
+                    {phase.goal ? (
+                        <PhaseInfo title="Goal" text={phase.goal} />
+                    ) : null}
+                    {phase.successCriteria ? (
+                        <PhaseInfo title="Success criteria" text={phase.successCriteria} />
+                    ) : null}
+                </section>
+            ) : null}
+
+            {phase.includedCategories?.length ? (
+                <div className="mt-5 flex flex-wrap gap-2">
+                    {phase.includedCategories.map((category) => (
+                        <span
+                            key={category}
+                            className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-zinc-300"
+                        >
+                            {shortCategoryLabels[category] ?? 'Product'}
+                        </span>
+                    ))}
+                </div>
+            ) : null}
 
             <section className="mt-6 grid gap-4 lg:grid-cols-2">
                 {columns.map((column) => {
@@ -74,6 +108,7 @@ export default function TaskPhase({ idea, category, phase }) {
                                             key={task.id}
                                             ideaId={idea.id}
                                             task={task}
+                                            showCategory={isGlobalPhase}
                                             onOpen={setSelectedTask}
                                         />
                                     ))}
@@ -92,5 +127,14 @@ export default function TaskPhase({ idea, category, phase }) {
                 <ActionTaskModal ideaId={idea.id} task={selectedTask} onClose={() => setSelectedTask(null)} />
             ) : null}
         </AppLayout>
+    );
+}
+
+function PhaseInfo({ title, text }) {
+    return (
+        <div className="min-w-0 rounded-lg border border-white/10 bg-white/[0.025] p-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">{title}</h2>
+            <p className="mt-2 break-words text-sm leading-6 text-zinc-300">{text}</p>
+        </div>
     );
 }

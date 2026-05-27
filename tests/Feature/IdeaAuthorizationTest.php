@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\GenerateIdeaRoadmap;
 use App\Models\Idea;
 use App\Models\User;
 use App\Services\ActionTasks\ActionTasks;
@@ -9,6 +10,7 @@ use App\Services\CoreFeatures\CoreFeatures;
 use App\Services\MvpScopes\MvpScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia;
 
 uses(RefreshDatabase::class);
@@ -65,6 +67,24 @@ function generatedActionTasks(): array
             'priority' => 'Medium',
             'category' => 'marketing',
         ],
+        [
+            'id' => 'task-3',
+            'title' => 'Draft validation landing page copy',
+            'description' => 'Describe the promised outcome for early visitors.',
+            'status' => 'pending',
+            'phase' => 'Validate',
+            'priority' => 'Medium',
+            'category' => 'marketing',
+        ],
+        [
+            'id' => 'task-4',
+            'title' => 'Compare three direct alternatives',
+            'description' => 'Document how people solve this problem today.',
+            'status' => 'completed',
+            'phase' => 'Validate',
+            'priority' => 'Low',
+            'category' => 'validation',
+        ],
     ];
 }
 
@@ -105,6 +125,34 @@ function generatedMvpScope(): array
     ];
 }
 
+function generatedActionPhases(): array
+{
+    return [
+        [
+            'title' => 'Validate',
+            'name' => 'Validate',
+            'slug' => 'validate',
+            'description' => 'Confirm the target user, problem, and launch assumptions.',
+            'primaryCategory' => 'validation',
+            'includedCategories' => ['validation', 'product', 'marketing'],
+            'goal' => 'Know whether the idea is worth building.',
+            'successCriteria' => 'The riskiest assumptions are confirmed or rejected.',
+            'order' => 1,
+        ],
+        [
+            'title' => 'Plan Launch',
+            'name' => 'Plan Launch',
+            'slug' => 'plan-launch',
+            'description' => 'Prepare the positioning and first launch channel.',
+            'primaryCategory' => 'marketing',
+            'includedCategories' => ['marketing', 'validation'],
+            'goal' => 'Get ready to reach first users.',
+            'successCriteria' => 'The launch message and audience are ready.',
+            'order' => 2,
+        ],
+    ];
+}
+
 function generatedRoadmap(): array
 {
     return [
@@ -113,6 +161,7 @@ function generatedRoadmap(): array
         'desired_outcome' => 'The user should leave with a clear checklist of what to validate, what to build first, and what to launch.',
         'core_features' => generatedCoreFeatures(),
         'mvp_scope' => generatedMvpScope(),
+        'action_phases' => generatedActionPhases(),
         'checklist' => generatedChecklist(),
     ];
 }
@@ -156,17 +205,7 @@ test('authenticated users only see their own ideas', function () {
 
 test('authenticated users can create ideas attached to their account', function () {
     $user = User::factory()->create();
-    $this->app->instance(RoadmapGenerator::class, new class extends RoadmapGenerator
-    {
-        public function __construct()
-        {
-        }
-
-        public function generate(string $ideaTitle, string $ideaDescription): array
-        {
-            return generatedRoadmap();
-        }
-    });
+    Queue::fake();
 
     $response = $this->actingAs($user)->post('/ideas', [
         'name' => 'Account auth',
@@ -179,48 +218,93 @@ test('authenticated users can create ideas attached to their account', function 
         'user_id' => $user->id,
         'name' => 'Account auth',
         'description' => 'Build account auth',
-        'problem_statement' => 'Solo SaaS founders often have rough ideas but struggle to turn them into concrete MVP scopes, feature priorities, and launch steps.',
-        'desired_outcome' => 'The user should leave with a clear checklist of what to validate, what to build first, and what to launch.',
-        'state' => 'pending',
+        'state' => 'generating',
     ]);
 
     $idea = Idea::where('name', 'Account auth')->firstOrFail();
 
+    expect($idea->target_user)->toBeNull()
+        ->and($idea->problem_statement)->toBeNull()
+        ->and($idea->desired_outcome)->toBeNull()
+        ->and($idea->core_features)->toBeNull()
+        ->and($idea->mvp_scope)->toBeNull()
+        ->and($idea->checklist)->toBe([])
+        ->and($idea->action_phases)->not->toBeEmpty()
+        ->and($idea->action_tasks)->toHaveCount(12)
+        ->and($idea->action_tasks[0])->toHaveKeys(['id', 'title', 'description', 'status', 'phase', 'phaseSlug', 'priority', 'category']);
+
+    Queue::assertPushed(GenerateIdeaRoadmap::class);
+});
+
+test('queued roadmap generation fills generated sections and marks the idea done', function () {
+    $user = User::factory()->create();
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Queued roadmap',
+        'description' => 'Generate this in the background.',
+        'action_tasks' => [],
+        'checklist' => [],
+        'state' => 'generating',
+    ]);
+
+    $this->app->instance(RoadmapGenerator::class, new class extends RoadmapGenerator
+    {
+        public function __construct()
+        {
+        }
+
+        public function generate(string $ideaTitle, string $ideaDescription): array
+        {
+            return generatedRoadmap();
+        }
+    });
+
+    app()->call([new GenerateIdeaRoadmap($idea->id), 'handle']);
+
+    $idea->refresh();
+
     expect($idea->checklist)->toHaveCount(7)
         ->and($idea->checklist[0])->toHaveKeys(['id', 'title', 'description', 'done'])
         ->and($idea->checklist[0]['title'])->toBe('Generated item 1')
-        ->and($idea->checklist[0]['description'])->toBe('Generated description 1')
         ->and($idea->checklist[0]['done'])->toBeFalse()
         ->and($idea->target_user)->toBe(generatedTargetUser())
         ->and($idea->problem_statement)->toBe('Solo SaaS founders often have rough ideas but struggle to turn them into concrete MVP scopes, feature priorities, and launch steps.')
         ->and($idea->desired_outcome)->toBe('The user should leave with a clear checklist of what to validate, what to build first, and what to launch.')
         ->and($idea->core_features)->toBe(generatedCoreFeatures())
         ->and($idea->mvp_scope)->toBe(generatedMvpScope())
+        ->and($idea->action_phases)->toBe(generatedActionPhases())
         ->and($idea->action_tasks)->toHaveCount(12)
-        ->and($idea->action_tasks[0])->toHaveKeys(['id', 'title', 'description', 'status', 'phase', 'phaseSlug', 'priority', 'category']);
+        ->and($idea->state)->toBe('done');
 });
 
-test('idea creation falls back to local roadmap when ai is unavailable', function () {
+test('queued roadmap generation marks the idea failed when generation throws', function () {
     $user = User::factory()->create();
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Failed roadmap',
+        'description' => 'This generation fails.',
+        'checklist' => [],
+        'state' => 'generating',
+    ]);
 
-    config(['services.openai.api_key' => null]);
+    $this->app->instance(RoadmapGenerator::class, new class extends RoadmapGenerator
+    {
+        public function __construct()
+        {
+        }
 
-    $this->actingAs($user)->post('/ideas', [
-        'name' => 'Fallback plan',
-        'description' => 'Generate without an API key.',
-    ])->assertRedirect('/');
+        public function generate(string $ideaTitle, string $ideaDescription): array
+        {
+            throw new RuntimeException('AI failed');
+        }
+    });
 
-    $idea = Idea::where('name', 'Fallback plan')->firstOrFail();
+    app()->call([new GenerateIdeaRoadmap($idea->id), 'handle']);
 
-    expect($idea->checklist)->toHaveCount(7)
-        ->and($idea->checklist[0])->toHaveKeys(['id', 'title', 'description', 'done'])
-        ->and($idea->checklist[0]['title'])->toBe('Clarify the problem')
-        ->and($idea->checklist[0]['description'])->not->toBeEmpty()
-        ->and($idea->checklist[0]['done'])->toBeFalse()
-        ->and($idea->target_user)->toHaveKeys(['user_type', 'main_problem', 'current_workaround', 'why_they_care'])
-        ->and($idea->target_user['user_type'])->not->toBeEmpty()
-        ->and($idea->problem_statement)->not->toBeEmpty()
-        ->and($idea->desired_outcome)->not->toBeEmpty();
+    $idea->refresh();
+
+    expect($idea->state)->toBe('failed')
+        ->and($idea->name)->toBe('Failed roadmap');
 });
 
 test('authenticated users can view their own idea checklist', function () {
@@ -288,6 +372,8 @@ test('idea detail page serializes the target user profile', function () {
             ->where('idea.mvpScope.must_have.0', 'Create an idea')
             ->where('idea.mvpScope.nice_to_have.0', 'Export the roadmap')
             ->where('idea.mvpScope.later.0', 'Collaborate with teammates')
+            ->where('idea.actionPhases.0.title', 'Validate the Problem')
+            ->where('idea.actionPhases.0.slug', 'validate-the-problem')
             ->where('idea.actionTasks.0.id', 'validate-problem-fit')
             ->where('idea.actionTasks.0.status', ActionTasks::PENDING)
             ->where('idea.actionTasks.0.category', 'validation'));
@@ -300,6 +386,7 @@ test('idea owners can view the dedicated action tasks page', function () {
         'user_id' => $user->id,
         'name' => 'Launch planner',
         'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
         'action_tasks' => generatedActionTasks(),
         'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
         'state' => 'pending',
@@ -311,6 +398,8 @@ test('idea owners can view the dedicated action tasks page', function () {
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Ideas/Tasks')
             ->where('idea.name', 'Launch planner')
+            ->where('idea.actionPhases.0.title', 'Validate')
+            ->where('idea.actionPhases.1.slug', 'plan-launch')
             ->where('idea.actionTasks.0.id', 'task-1')
             ->where('idea.actionTasks.0.status', 'pending')
             ->where('idea.actionTasks.0.category', 'product'));
@@ -323,6 +412,7 @@ test('idea owners can view a dedicated action task phase page', function () {
         'user_id' => $user->id,
         'name' => 'Launch planner',
         'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
         'action_tasks' => generatedActionTasks(),
         'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
         'state' => 'pending',
@@ -336,6 +426,78 @@ test('idea owners can view a dedicated action task phase page', function () {
             ->where('category', 'product')
             ->where('phase.name', 'Validate')
             ->where('phase.tasks.0.id', 'task-1'));
+});
+
+test('idea owners can view a global action task phase with mixed categories', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->get("/ideas/{$idea->id}/tasks/phases/validate")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Ideas/TaskPhase')
+            ->where('category', null)
+            ->where('phase.name', 'Validate')
+            ->where('phase.description', 'Confirm the target user, problem, and launch assumptions.')
+            ->where('phase.goal', 'Know whether the idea is worth building.')
+            ->where('phase.successCriteria', 'The riskiest assumptions are confirmed or rejected.')
+            ->where('phase.tasks.0.id', 'task-1')
+            ->where('phase.tasks.0.category', 'product')
+            ->where('phase.tasks.1.id', 'task-3')
+            ->where('phase.tasks.1.category', 'marketing')
+            ->where('phase.tasks.2.id', 'task-4')
+            ->where('phase.tasks.2.category', 'validation'));
+});
+
+test('idea owners can view a generated phase with no matching tasks', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->get("/ideas/{$idea->id}/tasks/phases/plan-launch")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Ideas/TaskPhase')
+            ->where('category', null)
+            ->where('phase.name', 'Plan Launch')
+            ->where('phase.tasks', []));
+});
+
+test('missing global action task phases return not found', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->get("/ideas/{$idea->id}/tasks/phases/missing")
+        ->assertNotFound();
 });
 
 test('idea task status updates persist', function () {
@@ -433,11 +595,14 @@ test('users cannot view or update action tasks owned by another user', function 
     ]);
 
     $this->actingAs($user)->get("/ideas/{$idea->id}/tasks")->assertForbidden();
+    $this->actingAs($user)->get("/ideas/{$idea->id}/tasks/phases/validate")->assertForbidden();
+    $this->actingAs($user)->get("/ideas/{$idea->id}/tasks/product/validate")->assertForbidden();
     $this->actingAs($user)->patch("/ideas/{$idea->id}/tasks/task-1", ['status' => 'completed'])->assertForbidden();
 });
 
 test('partial generation failures are persisted and visible', function () {
     $user = User::factory()->create();
+    Queue::fake();
     $this->app->instance(RoadmapGenerator::class, new class extends RoadmapGenerator
     {
         public function __construct()
@@ -477,14 +642,17 @@ test('partial generation failures are persisted and visible', function () {
 
     $idea = Idea::where('name', 'Partial failure')->firstOrFail();
 
-    expect($idea->core_features[0]['feature'])->toBe(CoreFeatures::FAILURE_MESSAGE)
-        ->and($idea->mvp_scope['must_have'])->toBe([MvpScope::FAILURE_MESSAGE])
-        ->and($idea->checklist[0]['title'])->toBe(ChecklistItems::FAILURE_MESSAGE);
+    expect($idea->state)->toBe('generating')
+        ->and($idea->core_features)->toBeNull()
+        ->and($idea->mvp_scope)->toBeNull()
+        ->and($idea->checklist)->toBe([]);
 
     $this->actingAs($user)
-        ->get("/ideas/{$idea->id}")
+        ->get('/')
         ->assertOk()
-        ->assertSee(CoreFeatures::FAILURE_MESSAGE);
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Ideas/Index')
+            ->where('ideas.0.state', 'generating'));
 });
 
 test('older ideas without generated feature sections still render', function () {

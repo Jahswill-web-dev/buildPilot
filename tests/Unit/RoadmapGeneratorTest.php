@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Ai\RoadmapGenerator;
+use App\Services\ActionPhases\ActionPhases;
 use App\Services\Checklists\ChecklistItems;
 use App\Services\CoreFeatures\CoreFeatures;
 use App\Services\DesiredOutcomes\DesiredOutcome;
@@ -16,6 +17,7 @@ uses(TestCase::class);
 function roadmapGenerator(): RoadmapGenerator
 {
     return new RoadmapGenerator(
+        new ActionPhases,
         new ChecklistItems,
         new CoreFeatures,
         new DesiredOutcome,
@@ -64,6 +66,53 @@ process.stdout.write(JSON.stringify({
     nice_to_have: ['Export roadmap'],
     later: ['Team collaboration']
   },
+  phases: [
+    {
+      title: 'Validate the Problem',
+      description: 'Confirm the audience and pain.',
+      primary_category: 'validation',
+      included_categories: ['validation', 'product'],
+      goal: 'Know if the problem is worth solving.',
+      success_criteria: 'Five useful conversations are complete.',
+      order: 1
+    },
+    {
+      title: 'Shape the MVP',
+      description: 'Define the smallest useful version.',
+      primary_category: 'product',
+      included_categories: ['product', 'validation'],
+      goal: 'Lock the first version scope.',
+      success_criteria: 'Must-have scope is clear.',
+      order: 2
+    },
+    {
+      title: 'Build the MVP',
+      description: 'Create the first usable product.',
+      primary_category: 'product',
+      included_categories: ['product'],
+      goal: 'Ship the must-have flow.',
+      success_criteria: 'The product works end to end.',
+      order: 3
+    },
+    {
+      title: 'Prepare the Launch',
+      description: 'Package the offer and channel.',
+      primary_category: 'marketing',
+      included_categories: ['marketing'],
+      goal: 'Reach the first users.',
+      success_criteria: 'Launch message is ready.',
+      order: 4
+    },
+    {
+      title: 'Improve From Feedback',
+      description: 'Use early learning to prioritize next steps.',
+      primary_category: 'validation',
+      included_categories: ['validation', 'product', 'marketing'],
+      goal: 'Learn what to improve.',
+      success_criteria: 'Next move is prioritized.',
+      order: 5
+    }
+  ],
   checklist: Array.from({ length: 7 }, (_, index) => ({
     title: `Step ${index + 1}`,
     description: `Do practical task ${index + 1}.`
@@ -83,6 +132,13 @@ JS),
             'reason' => 'Lets founders save the idea.',
         ])
         ->and($roadmap['mvp_scope']['must_have'])->toBe(['Create an idea', 'Generate a roadmap'])
+        ->and($roadmap['action_phases'])->toHaveCount(5)
+        ->and($roadmap['action_phases'][0])->toMatchArray([
+            'title' => 'Validate the Problem',
+            'slug' => 'validate-the-problem',
+            'primaryCategory' => 'validation',
+            'includedCategories' => ['validation', 'product'],
+        ])
         ->and($roadmap['checklist'])->toHaveCount(7)
         ->and($roadmap['checklist'][0])->toHaveKeys(['id', 'title', 'description', 'done'])
         ->and($roadmap['checklist'][0]['title'])->toBe('Step 1')
@@ -104,6 +160,7 @@ process.stdout.write(JSON.stringify({
   desired_outcome: 'The founder should know what to validate and build first.',
   core_features: [{ feature: 'Missing reason' }],
   mvp_scope: { must_have: [], nice_to_have: [], later: [] },
+  phases: null,
   checklist: [{ title: 'Too few', description: 'Only one item.' }]
 }));
 JS),
@@ -116,6 +173,7 @@ JS),
         ->and($roadmap['desired_outcome'])->toBe('The founder should know what to validate and build first.')
         ->and($roadmap['core_features'][0]['feature'])->toBe(CoreFeatures::FAILURE_MESSAGE)
         ->and($roadmap['mvp_scope']['must_have'])->toBe([MvpScope::FAILURE_MESSAGE])
+        ->and($roadmap['action_phases'][0]['title'])->toBe('Validate the Problem')
         ->and($roadmap['checklist'])->toHaveCount(1)
         ->and($roadmap['checklist'][0]['title'])->toBe(ChecklistItems::FAILURE_MESSAGE);
 });
@@ -141,12 +199,14 @@ process.stdout.write(JSON.stringify({
     nice_to_have: ['Export roadmap'],
     later: ['Team collaboration']
   },
+  phases: null,
   checklist: Array.from({ length: 7 }, (_, index) => ({
     title: `Step ${index + 1}`,
     description: `Do practical task ${index + 1}.`
   })),
   stage_errors: {
-    core_features: 'Model returned invalid core feature JSON'
+    core_features: 'Model returned invalid core feature JSON',
+    phases: 'Model returned invalid phase JSON'
   }
 }));
 JS),
@@ -157,9 +217,10 @@ JS),
     Log::shouldHaveReceived('warning')
         ->once()
         ->with('AI roadmap generation completed with failed stages.', [
-            'failed_stages' => ['core_features'],
+            'failed_stages' => ['core_features', 'phases'],
             'stage_errors' => [
                 'core_features' => 'Model returned invalid core feature JSON',
+                'phases' => 'Model returned invalid phase JSON',
             ],
         ]);
 });
@@ -180,6 +241,7 @@ JS),
         ->and($roadmap['desired_outcome'])->not->toBeEmpty()
         ->and($roadmap['core_features'])->toHaveCount(4)
         ->and($roadmap['mvp_scope']['must_have'])->not->toBeEmpty()
+        ->and($roadmap['action_phases'])->toHaveCount(5)
         ->and($roadmap['checklist'])->toHaveCount(7)
         ->and($roadmap['checklist'][0]['title'])->toBe('Clarify the problem');
 });

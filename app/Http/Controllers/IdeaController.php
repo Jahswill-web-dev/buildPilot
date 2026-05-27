@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateIdeaRoadmap;
 use App\Models\Idea;
-use App\Services\Ai\RoadmapGenerator;
+use App\Services\ActionPhases\ActionPhases;
 use App\Services\ActionTasks\ActionTasks;
 use App\Services\Checklists\ChecklistItems;
 use App\Services\CoreFeatures\CoreFeatures;
@@ -19,6 +20,7 @@ use Inertia\Response;
 class IdeaController extends Controller
 {
     public function __construct(
+        private readonly ActionPhases $actionPhases,
         private readonly ActionTasks $actionTasks,
         private readonly ChecklistItems $checklistItems,
         private readonly CoreFeatures $coreFeatures,
@@ -42,29 +44,25 @@ class IdeaController extends Controller
         ]);
     }
 
-    public function store(Request $request, RoadmapGenerator $roadmapGenerator): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['required', 'string', 'max:2000'],
         ]);
 
-        $roadmap = $roadmapGenerator->generate($validated['name'], $validated['description']);
-
-        $request->user()->ideas()->create([
+        $idea = $request->user()->ideas()->create([
             'name' => $validated['name'],
             'description' => $validated['description'],
-            'target_user' => $roadmap['target_user'],
-            'problem_statement' => $roadmap['problem_statement'],
-            'desired_outcome' => $roadmap['desired_outcome'],
-            'core_features' => $roadmap['core_features'],
-            'mvp_scope' => $roadmap['mvp_scope'],
+            'action_phases' => $this->actionPhases->fallback(),
             'action_tasks' => $this->actionTasks->fallback(),
-            'checklist' => $roadmap['checklist'],
-            'state' => 'pending',
+            'checklist' => [],
+            'state' => 'generating',
         ]);
 
-        return redirect()->route('home')->with('success', 'Your roadmap has been generated!');
+        GenerateIdeaRoadmap::dispatch($idea->id);
+
+        return redirect()->route('home')->with('success', 'Roadmap generation started.');
     }
 
     public function show(Idea $idea): Response
@@ -126,6 +124,7 @@ class IdeaController extends Controller
             'desiredOutcome' => $this->desiredOutcome->normalizeStored($idea->desired_outcome),
             'coreFeatures' => $this->coreFeatures->normalizeStored($idea->core_features),
             'mvpScope' => $this->mvpScope->normalizeStored($idea->mvp_scope),
+            'actionPhases' => $this->actionPhases->normalizeStored($idea->action_phases),
             'actionTasks' => $this->actionTasks->normalizeStored($idea->action_tasks),
             'checklist' => $this->checklistItems->normalizeStored($idea->checklist),
         ];

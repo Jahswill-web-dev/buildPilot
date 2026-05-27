@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Idea;
+use App\Services\ActionPhases\ActionPhases;
 use App\Services\ActionTasks\ActionTasks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,8 +12,10 @@ use Inertia\Response;
 
 class IdeaTaskController extends Controller
 {
-    public function __construct(private readonly ActionTasks $actionTasks)
-    {
+    public function __construct(
+        private readonly ActionPhases $actionPhases,
+        private readonly ActionTasks $actionTasks,
+    ) {
     }
 
     public function index(Idea $idea): Response
@@ -24,6 +27,7 @@ class IdeaTaskController extends Controller
                 'id' => $idea->id,
                 'name' => $idea->name,
                 'description' => $idea->description,
+                'actionPhases' => $this->actionPhases->normalizeStored($idea->action_phases),
                 'actionTasks' => $this->actionTasks->normalizeStored($idea->action_tasks),
             ],
         ]);
@@ -49,6 +53,40 @@ class IdeaTaskController extends Controller
             'category' => $category,
             'phase' => [
                 'name' => $tasks[0]['phase'],
+                'title' => $tasks[0]['phase'],
+                'slug' => $phaseSlug,
+                'description' => '',
+                'goal' => '',
+                'successCriteria' => '',
+                'tasks' => $tasks,
+            ],
+        ]);
+    }
+
+    public function phaseOverview(Idea $idea, string $phaseSlug): Response
+    {
+        $this->authorizeOwner($idea);
+
+        $phase = collect($this->actionPhases->normalizeStored($idea->action_phases))
+            ->firstWhere('slug', $phaseSlug);
+
+        abort_unless($phase, 404);
+
+        $tasks = collect($this->actionTasks->normalizeStored($idea->action_tasks))
+            ->filter(fn (array $task): bool => $task['phaseSlug'] === $phaseSlug)
+            ->values()
+            ->all();
+
+        return Inertia::render('Ideas/TaskPhase', [
+            'idea' => [
+                'id' => $idea->id,
+                'name' => $idea->name,
+                'description' => $idea->description,
+            ],
+            'category' => null,
+            'phase' => [
+                ...$phase,
+                'name' => $phase['title'],
                 'slug' => $phaseSlug,
                 'tasks' => $tasks,
             ],

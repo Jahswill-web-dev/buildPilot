@@ -49,11 +49,22 @@ export default function IdeaCard({ idea }) {
 }
 
 export function StatusBadge({ state }) {
-    const isDone = state === 'done';
+    const styles = {
+        done: 'bg-emerald-500/15 text-emerald-300',
+        generating: 'bg-teal-500/15 text-teal-200',
+        failed: 'bg-red-500/15 text-red-300',
+        pending: 'bg-amber-500/15 text-amber-300',
+    };
+    const label = {
+        done: 'Done',
+        generating: 'Generating',
+        failed: 'Failed',
+        pending: 'Pending',
+    }[state] ?? state.charAt(0).toUpperCase() + state.slice(1);
 
     return (
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${isDone ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
-            {state.charAt(0).toUpperCase() + state.slice(1)}
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[state] ?? styles.pending}`}>
+            {label}
         </span>
     );
 }

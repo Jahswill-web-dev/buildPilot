@@ -4,6 +4,208 @@ A running technical record of every feature built, what files were changed, and 
 
 ---
 
+## Feature 7 - Async Roadmap Generation UX
+**Date:** 2026-05-27
+**Status:** Complete
+
+---
+
+### Overview
+
+Moved AI roadmap generation out of the browser request. Creating an idea now saves a placeholder record immediately, redirects back to the ideas page, and processes AI generation in a queued job. The ideas page shows a generating skeleton card with rotating progress text until polling sees that the idea is complete.
+
+The current generation flow is:
+
+```text
+POST /ideas
+  -> create idea with state = generating
+  -> dispatch GenerateIdeaRoadmap
+  -> redirect to /
+
+queue worker
+  -> run RoadmapGenerator
+  -> save generated roadmap fields
+  -> mark idea done
+
+ideas page
+  -> show generating card
+  -> poll while any idea is generating
+```
+
+---
+
+### What Was Built
+
+#### 1. Queued roadmap job
+
+Added `app/Jobs/GenerateIdeaRoadmap.php`.
+
+The job:
+
+- loads the idea by id
+- calls `RoadmapGenerator`
+- saves target user, problem statement, desired outcome, core features, MVP scope, action phases, fallback action tasks, and checklist
+- marks the idea `done` on success
+- marks the idea `failed` if generation throws or the queued job fails
+
+#### 2. Fast idea creation
+
+Updated `IdeaController@store` so it no longer waits for OpenAI before redirecting. It now creates the idea with:
+
+- `state = generating`
+- fallback action phases
+- fallback action tasks
+- empty checklist
+
+Then it dispatches `GenerateIdeaRoadmap`.
+
+#### 3. Generating state UI
+
+Added:
+
+- `resources/js/Components/GeneratingIdeaCard.jsx`
+- `resources/js/Components/GenerationProgressText.jsx`
+- `resources/js/hooks/useGeneratingIdeasPoll.js`
+
+The idea board now shows a dedicated skeleton loading card for generating ideas. The progress copy rotates through estimated messages such as understanding the idea, defining the target user, shaping MVP scope, planning phases, and preparing the roadmap.
+
+#### 4. Polling
+
+The ideas index reloads only the `ideas` prop every few seconds while at least one idea is in the `generating` state. Polling stops automatically when no generating ideas remain.
+
+#### 5. Status badges
+
+Updated `StatusBadge` to support:
+
+- `generating`
+- `done`
+- `failed`
+- `pending`
+
+#### 6. Tests
+
+Updated `tests/Feature/IdeaAuthorizationTest.php` so creation and generation are tested separately:
+
+- posting `/ideas` creates a `generating` idea and queues the job
+- the queued job fills generated sections and marks the idea `done`
+- the queued job marks the idea `failed` when generation throws
+- the ideas index serializes generating ideas
+
+---
+
+### Runtime Note
+
+Async generation requires a queue worker:
+
+```text
+php artisan queue:work
+```
+
+The existing `composer dev` script already starts `php artisan queue:listen --tries=1` alongside Laravel and Vite.
+
+---
+
+### Verification
+
+```text
+npm run build
+  -> Passed
+```
+
+PHP tests could not be run from the current shell because `php` was not available on PATH.
+
+---
+
+## Feature 6 - AI Roadmap Phases and Phase-First Task UI
+**Date:** 2026-05-27
+**Status:** Complete
+
+---
+
+### Overview
+
+Added AI-generated roadmap phases and changed the Action Plan page so phases are the first/default tab. A phase represents a major execution stage and can contain product, marketing, and validation work together. Tasks remain separate and categorized, ready for later AI task generation per phase.
+
+---
+
+### What Was Built
+
+#### 1. Action phase storage and normalization
+
+Added `action_phases` JSON storage with `database/migrations/2026_05_27_000001_add_action_phases_to_ideas_table.php`.
+
+Added `app/Services/ActionPhases/ActionPhases.php` to normalize:
+
+- phase title/name
+- slug
+- description
+- primary category
+- included categories
+- goal
+- success criteria
+- order
+
+Older ideas fall back to local roadmap phases.
+
+#### 2. AI phase prompt and bridge support
+
+Added `resources/prompts/roadmap/phases.md`.
+
+Updated `resources/js/ai/generate-roadmap.mjs` so the roadmap payload includes `phases` in addition to target user, problem statement, desired outcome, core features, MVP scope, and checklist.
+
+Updated `RoadmapGenerator` so AI phases are normalized and returned as `action_phases`.
+
+#### 3. Phase-first Action Plan
+
+Updated `resources/js/Pages/Ideas/Tasks.jsx`.
+
+The Action Plan tabs are now:
+
+- Phases
+- Product tasks
+- Marketing tasks
+- Market validation
+
+The Phases tab displays AI phase cards. Category tabs display tasks directly in pending/completed columns.
+
+#### 4. Global phase page
+
+Added:
+
+```text
+GET /ideas/{idea}/tasks/phases/{phaseSlug}
+```
+
+The global phase page shows phase description, goal, success criteria, included categories, and all matching tasks across categories. Valid generated phases with no matching tasks render an empty task state instead of returning 404.
+
+#### 5. Tests
+
+Added `tests/Unit/ActionPhasesTest.php` and extended feature/unit tests for:
+
+- AI phase normalization
+- category validation
+- fallback phases
+- phase metadata serialization
+- global phase pages with mixed-category tasks
+- generated phases with no matching tasks
+- missing phase 404s
+
+---
+
+### Verification
+
+```text
+npm run build
+  -> Passed
+
+node --check resources/js/ai/generate-roadmap.mjs
+  -> Passed
+```
+
+PHP tests could not be run from the current shell because `php` was not available on PATH.
+
+---
+
 ## Feature 5 - Action Plan Tasks, Categories, Phases, and Task Modals
 **Date:** 2026-05-26
 **Status:** Complete

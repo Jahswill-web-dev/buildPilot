@@ -60,7 +60,10 @@ app/
 |-- Models/
 |   |-- Idea.php
 |   `-- User.php
+|-- Jobs/
+|   `-- GenerateIdeaRoadmap.php
 |-- Services/
+|   |-- ActionPhases/
 |   |-- ActionTasks/
 |   |-- Ai/
 |   |-- Checklists/
@@ -72,12 +75,18 @@ app/
 `-- Providers/
 ```
 
+### Jobs
+
+| File | Purpose |
+|---|---|
+| `GenerateIdeaRoadmap.php` | Queued job that runs AI roadmap generation, fills generated idea fields, and marks ideas `done` or `failed`. |
+
 ### Controllers
 
 | File | Purpose |
 |---|---|
 | `AuthController.php` | Shows Inertia login/register pages and handles register, login, and logout actions. |
-| `IdeaController.php` | Handles idea index, create, detail, update, and delete actions. Returns Inertia pages for the idea UI. |
+| `IdeaController.php` | Handles idea index, async idea creation, detail, update, and delete actions. Returns Inertia pages for the idea UI. |
 | `IdeaTaskController.php` | Handles Action Plan overview, phase pages, and task status updates. |
 | `ChecklistItemController.php` | Handles checklist item add, edit/toggle, and delete actions. |
 | `Controller.php` | Base controller class. |
@@ -92,13 +101,14 @@ app/
 
 | File | Table | Purpose |
 |---|---|---|
-| `Idea.php` | `ideas` | User-owned idea record with JSON roadmap/checklist/action task casting and a `user()` relationship. |
+| `Idea.php` | `ideas` | User-owned idea record with JSON roadmap, phase, checklist, and action task casting plus a `user()` relationship. |
 | `User.php` | `users` | Authenticated user model with a `ideas()` relationship and hashed password casting. |
 
 ### Services
 
 | File/Folder | Purpose |
 |---|---|
+| `ActionPhases/ActionPhases.php` | AI roadmap phase fallback and normalization, including phase slugs, order, primary category, included categories, goals, and success criteria. |
 | `ActionTasks/ActionTasks.php` | Local fallback task set and normalization for task categories, phases, phase slugs, priorities, and statuses. |
 | `Ai/RoadmapGenerator.php` | Calls the Node/LangChain roadmap generator and falls back to local roadmap data. |
 | `Checklists/ChecklistItems.php` | Checklist fallback, AI response parsing, legacy normalization, and stored item normalization. |
@@ -140,6 +150,7 @@ database/
 | `2026_05_25_000003_add_desired_outcome_to_ideas_table.php` | Adds generated desired outcome storage. |
 | `2026_05_25_000004_add_core_features_and_mvp_scope_to_ideas_table.php` | Adds generated core features and MVP scope JSON storage. |
 | `2026_05_26_000001_add_action_tasks_to_ideas_table.php` | Adds Action Plan task JSON storage. |
+| `2026_05_27_000001_add_action_phases_to_ideas_table.php` | Adds AI roadmap phase JSON storage. |
 
 ---
 
@@ -152,7 +163,10 @@ resources/
 |-- js/
 |   |-- app.js
 |   |-- Components/
+|   |-- hooks/
 |   `-- Pages/
+|-- prompts/
+|   `-- roadmap/
 `-- views/
     `-- app.blade.php
 ```
@@ -169,7 +183,10 @@ resources/
 |---|---|
 | `resources/js/app.js` | Inertia React bootstrap. Resolves React pages from `resources/js/Pages`. |
 | `resources/js/Components/` | Shared React UI components: layout, buttons, inputs, auth card, idea card, inline editor, checklist item, action task card, and action task modal. |
+| `resources/js/hooks/` | Small React hooks, including polling for ideas still in the `generating` state. |
 | `resources/js/Pages/` | React page components for Ideas, task phases, Auth, About, and Contact. |
+| `resources/js/ai/generate-roadmap.mjs` | Server-side Node/LangChain bridge used by the queued roadmap generation job. |
+| `resources/prompts/roadmap/` | Dedicated roadmap prompt files, including the phase generation prompt. |
 
 ### Views
 
@@ -202,6 +219,7 @@ routes/
 | `PATCH` | `/ideas/{idea}` | `IdeaController@update` |
 | `DELETE` | `/ideas/{idea}` | `IdeaController@destroy` |
 | `GET` | `/ideas/{idea}/tasks` | `IdeaTaskController@index` |
+| `GET` | `/ideas/{idea}/tasks/phases/{phaseSlug}` | `IdeaTaskController@phaseOverview` |
 | `GET` | `/ideas/{idea}/tasks/{category}/{phaseSlug}` | `IdeaTaskController@phase` |
 | `PATCH` | `/ideas/{idea}/tasks/{taskId}` | `IdeaTaskController@update` |
 | `POST` | `/ideas/{idea}/checklist-items` | `ChecklistItemController@store` |
@@ -236,7 +254,8 @@ Feature tests cover:
 - Inertia page responses for auth and idea pages.
 - Idea ownership and authorization.
 - Idea creation, editing, viewing, and deletion.
-- Action Plan fallback task normalization, categories, phase slugs, task phase pages, status updates, and authorization.
+- Async idea creation and queued roadmap generation success/failure behavior.
+- Action Plan phase and fallback task normalization, categories, phase slugs, task phase pages, status updates, and authorization.
 - Checklist item creation, editing, toggling, deletion, and migration behavior.
 
 ---

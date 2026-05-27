@@ -16,10 +16,11 @@ The backend is Laravel. The frontend is now React through Inertia, which means L
 
 - **Register, sign in, and log out** using Laravel session authentication.
 - **Create ideas** with a name and description.
-- **Generate startup roadmaps with AI** when new ideas are saved, including a target user profile, problem statement, desired outcome, core features, MVP scope, and editable checklist.
-- **Review an Action Plan** generated with local placeholder tasks for now. Tasks are grouped by category, then phase, then task.
-- **Browse task categories** for Product tasks, Marketing tasks, and Market validation.
-- **Open phase pages** from each task category to focus on the tasks inside that phase.
+- **Generate startup roadmaps with AI in the background** when new ideas are saved, including a target user profile, problem statement, desired outcome, core features, MVP scope, roadmap phases, and editable checklist.
+- **See generation progress on the idea board** with a skeleton loading card and rotating progress text while the queued AI job runs.
+- **Review an Action Plan** with AI-generated phases and local placeholder tasks for now. Tasks still keep product, marketing, and validation categories.
+- **Browse roadmap phases first**, then open a phase page that can contain tasks from multiple categories.
+- **Browse task categories** for Product tasks, Marketing tasks, and Market validation, with tasks shown directly in each category tab.
 - **Open task detail modals** from phase pages and toggle task status between pending and completed.
 - **View your own ideas only** on the main board.
 - **Open an idea detail page** with its full description and checklist.
@@ -35,10 +36,11 @@ The backend is Laravel. The frontend is now React through Inertia, which means L
 
 | Page | What You'll Find There |
 |---|---|
-| **Home (`/`)** | Auth-protected idea creation form and your saved idea list |
+| **Home (`/`)** | Auth-protected idea creation form, saved idea list, and generating-roadmap skeleton cards |
 | **Idea detail (`/ideas/{idea}`)** | Editable idea details, generated roadmap sections, Action Plan preview, and checklist workflow |
-| **Action Plan (`/ideas/{idea}/tasks`)** | Category tabs and phase cards for product, marketing, and market validation tasks |
-| **Task phase (`/ideas/{idea}/tasks/{category}/{phaseSlug}`)** | Pending/completed task board for one phase, with task detail modal |
+| **Action Plan (`/ideas/{idea}/tasks`)** | First tab shows roadmap phase cards; category tabs show product, marketing, or validation tasks directly |
+| **Global task phase (`/ideas/{idea}/tasks/phases/{phaseSlug}`)** | Phase description, goal, success criteria, and pending/completed tasks across categories |
+| **Task phase (`/ideas/{idea}/tasks/{category}/{phaseSlug}`)** | Compatibility route for one category/phase task board |
 | **Login (`/login`)** | React/Inertia sign-in form |
 | **Register (`/register`)** | React/Inertia account creation form |
 | **About (`/about`)** | Short product overview |
@@ -62,6 +64,7 @@ Important frontend files:
 - `resources/js/app.js` - Inertia React bootstrap.
 - `resources/js/Pages/` - React page components.
 - `resources/js/Components/` - shared UI components.
+- `resources/js/hooks/` - small React hooks such as the generating-idea polling hook.
 - `resources/css/app.css` - Tailwind CSS v4 entry point.
 
 Important backend files:
@@ -71,13 +74,15 @@ Important backend files:
 - `app/Http/Controllers/IdeaController.php` - idea list/create/show/update/delete.
 - `app/Http/Controllers/IdeaTaskController.php` - Action Plan overview, phase pages, and task status updates.
 - `app/Http/Controllers/ChecklistItemController.php` - checklist item create/update/delete.
+- `app/Jobs/GenerateIdeaRoadmap.php` - queued job that runs AI roadmap generation and updates idea state.
+- `app/Services/ActionPhases/ActionPhases.php` - AI roadmap phase normalization, slugs, category validation, and fallback phases.
 - `app/Services/ActionTasks/ActionTasks.php` - Action Plan fallback tasks, categories, phases, and normalization logic.
 - `app/Services/Ai/RoadmapGenerator.php` - Laravel service that calls the LangChain roadmap bridge.
 - `app/Services/Checklists/ChecklistItems.php` - checklist fallback and normalization logic.
 - `app/Services/CoreFeatures/CoreFeatures.php` - core feature fallback and normalization logic.
 - `app/Services/MvpScopes/MvpScope.php` - MVP scope fallback and normalization logic.
 - `app/Services/TargetUsers/TargetUserProfile.php` - target user fallback and normalization logic.
-- `resources/js/ai/generate-roadmap.mjs` - staged LangChain/OpenAI bridge used during idea creation.
+- `resources/js/ai/generate-roadmap.mjs` - server-side LangChain/OpenAI bridge used by the queued roadmap generation job.
 - `resources/prompts/roadmap/` - dedicated prompt files for each AI roadmap stage.
 - `app/Http/Middleware/HandleInertiaRequests.php` - shared Inertia props.
 
@@ -106,9 +111,17 @@ OPENAI_API_KEY=
 # 6. Install JavaScript dependencies
 npm install
 
-# 7. Start the development server
+# 7. Start the development server, queue worker, and Vite
 composer dev
 ```
+
+The AI roadmap job is queued. If you are not using `composer dev`, run a queue worker in a separate terminal:
+
+```bash
+php artisan queue:work
+```
+
+Without a running worker, new ideas will stay in the `generating` state.
 
 If using Herd, the app may also be available at:
 
@@ -137,8 +150,9 @@ Current verification after the AI integration check:
 
 - The app no longer uses Blade page templates for the UI. Blade is only used for the single Inertia root view.
 - The project keeps Laravel session auth, CSRF protection, redirects, validation, and middleware.
-- AI roadmap generation uses LangChain.js from a server-side Node bridge. It runs separate prompt stages for the profile, core features, MVP scope, and checklist with a default 120 second process timeout. If `OPENAI_API_KEY` is missing, the app stores a local fallback roadmap. If one AI stage fails, that section stores a visible failure message while successful sections are preserved and logged.
-- Action Plan tasks are currently generated from local fallback data, not the AI bridge. They are stored on each idea as JSON in `action_tasks` and normalized into categories, phases, and statuses for the UI.
+- AI roadmap generation uses a queued Laravel job plus a server-side LangChain.js Node bridge. The bridge returns structured profile, core features, MVP scope, phases, and checklist data. If `OPENAI_API_KEY` is missing or generation fails, the app stores local fallback roadmap data.
+- Roadmap phases are AI-generated and stored in `action_phases`. They include title, description, goal, success criteria, order, primary category, and included categories.
+- Action Plan tasks are currently generated from local fallback data, not the AI bridge. They are stored on each idea as JSON in `action_tasks` and normalized into categories, phases, and statuses for the UI. Future AI task generation is expected to generate categorized tasks per phase.
 - No separate Next.js app, token-based auth, or public API layer has been introduced.
 - The current UI is a restrained dark product interface using Tailwind CSS and `lucide-react` icons.
 

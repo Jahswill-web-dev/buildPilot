@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Services\ActionPhases\ActionPhases;
 use App\Services\Checklists\ChecklistItems;
 use App\Services\CoreFeatures\CoreFeatures;
 use App\Services\DesiredOutcomes\DesiredOutcome;
@@ -15,6 +16,7 @@ use Throwable;
 class RoadmapGenerator
 {
     public function __construct(
+        private readonly ActionPhases $actionPhases,
         private readonly ChecklistItems $checklistItems,
         private readonly CoreFeatures $coreFeatures,
         private readonly DesiredOutcome $desiredOutcome,
@@ -74,6 +76,7 @@ class RoadmapGenerator
             $desiredOutcome = $this->desiredOutcome->fromAiResponse($roadmap['desired_outcome'] ?? null);
             $coreFeatures = $this->coreFeatures->fromAiResponse($roadmap['core_features'] ?? null);
             $mvpScope = $this->mvpScope->fromAiResponse($roadmap['mvp_scope'] ?? null);
+            $phases = $this->actionPhases->fromAiResponse($roadmap['phases'] ?? null);
             $checklist = $this->checklistItems->fromAiResponse($roadmap['checklist'] ?? null);
 
             return [
@@ -82,6 +85,7 @@ class RoadmapGenerator
                 'desired_outcome' => $desiredOutcome === '' ? $this->desiredOutcome->failed() : $desiredOutcome,
                 'core_features' => $coreFeatures === [] ? $this->coreFeatures->failed() : $coreFeatures,
                 'mvp_scope' => $mvpScope === [] ? $this->mvpScope->failed() : $mvpScope,
+                'action_phases' => $phases === [] ? $this->actionPhases->fallback() : $phases,
                 'checklist' => $checklist === [] ? $this->checklistItems->failed() : $checklist,
             ];
         } catch (Throwable $error) {
@@ -102,6 +106,7 @@ class RoadmapGenerator
             'desired_outcome' => $this->desiredOutcome->fallback(),
             'core_features' => $this->coreFeatures->fallback(),
             'mvp_scope' => $this->mvpScope->fallback(),
+            'action_phases' => $this->actionPhases->fallback(),
             'checklist' => $this->checklistItems->fallback(),
         ];
     }

@@ -4,10 +4,14 @@ import AppLayout from '../../Components/AppLayout';
 import Button from '../../Components/Button';
 import ErrorSummary from '../../Components/ErrorSummary';
 import FormField from '../../Components/FormField';
+import GeneratingIdeaCard from '../../Components/GeneratingIdeaCard';
 import IdeaCard from '../../Components/IdeaCard';
 import TextInput from '../../Components/TextInput';
+import useGeneratingIdeasPoll from '../../hooks/useGeneratingIdeasPoll';
 
 export default function Index({ ideas }) {
+    useGeneratingIdeasPoll(ideas);
+
     const form = useForm({
         name: '',
         description: '',
@@ -70,7 +74,11 @@ export default function Index({ ideas }) {
                     </h2>
                     <div className="space-y-3">
                         {ideas.map((idea) => (
-                            <IdeaCard key={idea.id} idea={idea} />
+                            idea.state === 'generating' ? (
+                                <GeneratingIdeaCard key={idea.id} idea={idea} />
+                            ) : (
+                                <IdeaCard key={idea.id} idea={idea} />
+                            )
                         ))}
                     </div>
                 </section>

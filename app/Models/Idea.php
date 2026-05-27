@@ -16,6 +16,7 @@ class Idea extends Model
             'target_user' => 'array',
             'core_features' => 'array',
             'mvp_scope' => 'array',
+            'action_phases' => 'array',
             'action_tasks' => 'array',
         ];
     }

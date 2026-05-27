@@ -28,6 +28,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/ideas/{idea}/tasks', [IdeaTaskController::class, 'index'])
         ->name('ideas.tasks.index');
+    Route::get('/ideas/{idea}/tasks/phases/{phaseSlug}', [IdeaTaskController::class, 'phaseOverview'])
+        ->name('ideas.tasks.phases.show');
     Route::get('/ideas/{idea}/tasks/{category}/{phaseSlug}', [IdeaTaskController::class, 'phase'])
         ->name('ideas.tasks.phase');
     Route::patch('/ideas/{idea}/tasks/{taskId}', [IdeaTaskController::class, 'update'])
