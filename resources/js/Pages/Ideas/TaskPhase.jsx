@@ -1,9 +1,9 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft } from 'lucide-react';
-import { useState } from 'react';
-import ActionTaskModal from '../../Components/ActionTaskModal';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import ActionTaskRow, { taskProgress } from '../../Components/ActionTaskRow';
 import AppLayout from '../../Components/AppLayout';
+import Button from '../../Components/Button';
+import ErrorSummary from '../../Components/ErrorSummary';
 
 const columns = [
     { title: 'Pending', status: 'pending' },
@@ -23,9 +23,15 @@ const shortCategoryLabels = {
 };
 
 export default function TaskPhase({ idea, category, phase }) {
-    const [selectedTask, setSelectedTask] = useState(null);
+    const generateForm = useForm({});
     const progress = taskProgress(phase.tasks);
     const isGlobalPhase = !category;
+
+    const generateTasks = () => {
+        generateForm.post(`/ideas/${idea.id}/tasks/phases/${phase.slug}/generate`, {
+            preserveScroll: true,
+        });
+    };
 
     return (
         <AppLayout maxWidth="max-w-6xl">
@@ -41,6 +47,8 @@ export default function TaskPhase({ idea, category, phase }) {
                 </Link>
             </div>
 
+            <ErrorSummary errors={generateForm.errors} />
+
             <header className="border-b border-white/10 pb-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                     <div className="min-w-0">
@@ -52,9 +60,22 @@ export default function TaskPhase({ idea, category, phase }) {
                             {isGlobalPhase ? `${idea.name} - product, marketing, and validation tasks` : idea.name}
                         </p>
                     </div>
-                    <div className="flex-shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3">
-                        <p className="text-sm font-semibold text-white">{progress.completed} of {progress.total}</p>
-                        <p className="text-xs text-zinc-500">phase tasks complete</p>
+                    <div className="flex flex-shrink-0 flex-col gap-3 sm:items-end">
+                        {isGlobalPhase ? (
+                            <Button
+                                type="button"
+                                onClick={generateTasks}
+                                processing={generateForm.processing}
+                                className="inline-flex items-center justify-center gap-2"
+                            >
+                                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                                Generate tasks
+                            </Button>
+                        ) : null}
+                        <div className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3">
+                            <p className="text-sm font-semibold text-white">{progress.completed} of {progress.total}</p>
+                            <p className="text-xs text-zinc-500">phase tasks complete</p>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -109,7 +130,6 @@ export default function TaskPhase({ idea, category, phase }) {
                                             ideaId={idea.id}
                                             task={task}
                                             showCategory={isGlobalPhase}
-                                            onOpen={setSelectedTask}
                                         />
                                     ))}
                                 </div>
@@ -118,14 +138,10 @@ export default function TaskPhase({ idea, category, phase }) {
                                     No tasks here.
                                 </div>
                             )}
-                        </div>
-                    );
-                })}
-            </section>
-
-            {selectedTask ? (
-                <ActionTaskModal ideaId={idea.id} task={selectedTask} onClose={() => setSelectedTask(null)} />
-            ) : null}
+                    </div>
+                );
+            })}
+        </section>
         </AppLayout>
     );
 }

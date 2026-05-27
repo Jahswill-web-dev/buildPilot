@@ -26,8 +26,10 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
         'checklist_model' => env('OPENAI_CHECKLIST_MODEL', 'gpt-5-nano'),
         'roadmap_timeout' => env('AI_ROADMAP_TIMEOUT_SECONDS', 120),
+        'phase_tasks_timeout' => env('AI_PHASE_TASKS_TIMEOUT_SECONDS', 120),
         'node_binary' => env('AI_NODE_BINARY', 'node'),
         'roadmap_script' => env('AI_ROADMAP_SCRIPT', base_path('resources/js/ai/generate-roadmap.mjs')),
+        'phase_tasks_script' => env('AI_PHASE_TASKS_SCRIPT', base_path('resources/js/ai/generate-phase-tasks.mjs')),
     ],
 
     'ses' => [

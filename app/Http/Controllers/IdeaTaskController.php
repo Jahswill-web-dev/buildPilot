@@ -5,16 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\Idea;
 use App\Services\ActionPhases\ActionPhases;
 use App\Services\ActionTasks\ActionTasks;
+use App\Services\Ai\PhaseTaskGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class IdeaTaskController extends Controller
 {
     public function __construct(
         private readonly ActionPhases $actionPhases,
         private readonly ActionTasks $actionTasks,
+        private readonly PhaseTaskGenerator $phaseTaskGenerator,
     ) {
     }
 
@@ -93,6 +96,36 @@ class IdeaTaskController extends Controller
         ]);
     }
 
+    public function show(Idea $idea, string $taskId): Response
+    {
+        $this->authorizeOwner($idea);
+
+        $task = collect($this->actionTasks->normalizeStored($idea->action_tasks))
+            ->firstWhere('id', $taskId);
+
+        abort_unless($task, 404);
+
+        $phase = collect($this->actionPhases->normalizeStored($idea->action_phases))
+            ->firstWhere('slug', $task['phaseSlug']);
+
+        return Inertia::render('Ideas/TaskShow', [
+            'idea' => [
+                'id' => $idea->id,
+                'name' => $idea->name,
+                'description' => $idea->description,
+            ],
+            'task' => $task,
+            'phase' => $phase ? [
+                ...$phase,
+                'name' => $phase['title'],
+            ] : [
+                'name' => $task['phase'],
+                'title' => $task['phase'],
+                'slug' => $task['phaseSlug'],
+            ],
+        ]);
+    }
+
     public function update(Request $request, Idea $idea, string $taskId): RedirectResponse
     {
         $this->authorizeOwner($idea);
@@ -123,6 +156,40 @@ class IdeaTaskController extends Controller
         $idea->update(['action_tasks' => $tasks]);
 
         return redirect()->back()->with('success', 'Task updated.');
+    }
+
+    public function generatePhaseTasks(Idea $idea, string $phaseSlug): RedirectResponse
+    {
+        $this->authorizeOwner($idea);
+
+        $phase = collect($this->actionPhases->normalizeStored($idea->action_phases))
+            ->firstWhere('slug', $phaseSlug);
+
+        abort_unless($phase, 404);
+
+        $currentTasks = $this->actionTasks->normalizeStored($idea->action_tasks);
+        $completedTasks = collect($currentTasks)
+            ->filter(fn (array $task): bool => $task['status'] === ActionTasks::COMPLETED)
+            ->values()
+            ->all();
+
+        try {
+            $generatedTasks = $this->phaseTaskGenerator->generate($idea, $phase, $completedTasks);
+        } catch (Throwable) {
+            return redirect()
+                ->back()
+                ->withErrors(['tasks' => 'Task generation failed. Try again in a moment.']);
+        }
+
+        $tasks = collect($currentTasks)
+            ->reject(fn (array $task): bool => $task['phaseSlug'] === $phaseSlug)
+            ->merge($generatedTasks)
+            ->values()
+            ->all();
+
+        $idea->update(['action_tasks' => $tasks]);
+
+        return redirect()->back()->with('success', 'Phase tasks generated.');
     }
 
     private function authorizeOwner(Idea $idea): void

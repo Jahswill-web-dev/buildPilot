@@ -1,7 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import ActionTaskModal from '../../Components/ActionTaskModal';
 import ActionTaskRow, { taskProgress } from '../../Components/ActionTaskRow';
 import AppLayout from '../../Components/AppLayout';
 
@@ -25,7 +24,6 @@ const categoryLabels = {
 
 export default function Tasks({ idea }) {
     const [activeTab, setActiveTab] = useState('phases');
-    const [selectedTask, setSelectedTask] = useState(null);
     const progress = taskProgress(idea.actionTasks);
     const phases = useMemo(
         () => attachTaskCountsToPhases(idea.actionPhases ?? [], idea.actionTasks),
@@ -144,18 +142,13 @@ export default function Tasks({ idea }) {
                 <TaskColumns
                     ideaId={idea.id}
                     tasks={activeTasks}
-                    onOpenTask={setSelectedTask}
                 />
             )}
-
-            {selectedTask ? (
-                <ActionTaskModal ideaId={idea.id} task={selectedTask} onClose={() => setSelectedTask(null)} />
-            ) : null}
         </AppLayout>
     );
 }
 
-function TaskColumns({ ideaId, tasks, onOpenTask }) {
+function TaskColumns({ ideaId, tasks }) {
     return (
         <section className="mt-6 grid gap-4 lg:grid-cols-2">
             {columns.map((column) => {
@@ -179,7 +172,6 @@ function TaskColumns({ ideaId, tasks, onOpenTask }) {
                                         key={task.id}
                                         ideaId={ideaId}
                                         task={task}
-                                        onOpen={onOpenTask}
                                     />
                                 ))}
                             </div>

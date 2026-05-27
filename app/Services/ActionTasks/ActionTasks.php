@@ -26,6 +26,26 @@ class ActionTasks
         'validation',
     ];
 
+    private const VALID_TASK_TYPES = [
+        'user_interview',
+        'assumption_test',
+        'competitor_research',
+        'survey',
+        'feedback_review',
+        'feature_planning',
+        'ux_flow',
+        'implementation',
+        'testing',
+        'deployment',
+        'positioning',
+        'landing_page_copy',
+        'content_creation',
+        'community_distribution',
+        'outreach',
+        'analytics',
+        'other',
+    ];
+
     private const FALLBACK_TASKS = [
         [
             'id' => 'validate-problem-fit',
@@ -147,6 +167,20 @@ class ActionTasks
         return $normalized === [] ? $this->fallback() : $normalized;
     }
 
+    public function fromAiPhaseResponse(mixed $payload, array $phase, string $phaseSlug): array
+    {
+        $items = is_array($payload) && array_key_exists('tasks', $payload) ? $payload['tasks'] : $payload;
+        $phaseTitle = $this->limit($phase['title'] ?? $phase['name'] ?? 'Phase', 40);
+        $ids = [];
+
+        return collect(is_array($items) ? $items : [])
+            ->map(fn (mixed $task): array => $this->normalizeGeneratedTask($task, $phaseTitle, $phaseSlug, $ids))
+            ->filter(fn (array $task): bool => $task['title'] !== '')
+            ->sortBy('order')
+            ->values()
+            ->all();
+    }
+
     public function isValidStatus(string $status): bool
     {
         return in_array($status, self::VALID_STATUSES, true);
@@ -164,10 +198,53 @@ class ActionTasks
             'description' => $this->limit($task['description'] ?? '', 500),
             'status' => $this->normalizeStatus($task['status'] ?? self::PENDING),
             'phase' => $this->limit($task['phase'] ?? 'Build', 40),
-            'phaseSlug' => Str::slug($this->limit($task['phase'] ?? 'Build', 40)),
+            'phaseSlug' => Str::slug($this->limit($task['phaseSlug'] ?? $task['phase_slug'] ?? $task['phase'] ?? 'Build', 90)),
             'priority' => $this->normalizePriority($task['priority'] ?? 'Medium'),
             'category' => $this->normalizeCategory($task['category'] ?? 'product'),
+            'taskType' => $this->normalizeTaskType($task['taskType'] ?? $task['task_type'] ?? 'other'),
+            'whyItMatters' => $this->limit($task['whyItMatters'] ?? $task['why_it_matters'] ?? '', 500),
+            'steps' => $this->normalizeStringList($task['steps'] ?? [], 8, 240),
+            'definitionOfDone' => $this->limit($task['definitionOfDone'] ?? $task['definition_of_done'] ?? '', 500),
+            'deliverable' => $this->limit($task['deliverable'] ?? '', 300),
+            'estimatedTimeMinutes' => $this->normalizeMinutes($task['estimatedTimeMinutes'] ?? $task['estimated_time_minutes'] ?? null),
+            'order' => max(1, (int) ($task['order'] ?? 999)),
+            'interviewQuestions' => $this->normalizeStringList($task['interviewQuestions'] ?? $task['interview_questions'] ?? [], 8, 260),
+            'researchChecklist' => $this->normalizeStringList($task['researchChecklist'] ?? $task['research_checklist'] ?? [], 10, 220),
+            'copyExamples' => $this->normalizeStringList($task['copyExamples'] ?? $task['copy_examples'] ?? [], 6, 500),
+            'outreachMessage' => $this->limit($task['outreachMessage'] ?? $task['outreach_message'] ?? '', 700),
+            'implementationNotes' => $this->normalizeStringList($task['implementationNotes'] ?? $task['implementation_notes'] ?? [], 10, 260),
+            'acceptanceCriteria' => $this->normalizeStringList($task['acceptanceCriteria'] ?? $task['acceptance_criteria'] ?? [], 10, 260),
+            'metricsToTrack' => $this->normalizeStringList($task['metricsToTrack'] ?? $task['metrics_to_track'] ?? [], 10, 180),
         ];
+    }
+
+    private function normalizeGeneratedTask(mixed $task, string $phaseTitle, string $phaseSlug, array &$ids): array
+    {
+        if (! is_array($task)) {
+            return $this->blankTask();
+        }
+
+        $order = max(1, (int) ($task['order'] ?? count($ids) + 1));
+        $title = $this->limit($task['title'] ?? '', 140);
+        $baseId = Str::slug("{$phaseSlug}-{$order}-{$title}");
+        $id = $baseId === '' ? "{$phaseSlug}-{$order}-task" : $baseId;
+        $attempt = 2;
+
+        while (in_array($id, $ids, true)) {
+            $id = "{$baseId}-{$attempt}";
+            $attempt++;
+        }
+
+        $ids[] = $id;
+
+        return $this->normalizeStoredTask([
+            ...$task,
+            'id' => $id,
+            'phase' => $phaseTitle,
+            'phaseSlug' => $phaseSlug,
+            'status' => self::PENDING,
+            'order' => $order,
+        ]);
     }
 
     private function blankTask(): array
@@ -181,6 +258,20 @@ class ActionTasks
             'phaseSlug' => 'build',
             'priority' => 'Medium',
             'category' => 'product',
+            'taskType' => 'other',
+            'whyItMatters' => '',
+            'steps' => [],
+            'definitionOfDone' => '',
+            'deliverable' => '',
+            'estimatedTimeMinutes' => null,
+            'order' => 999,
+            'interviewQuestions' => [],
+            'researchChecklist' => [],
+            'copyExamples' => [],
+            'outreachMessage' => '',
+            'implementationNotes' => [],
+            'acceptanceCriteria' => [],
+            'metricsToTrack' => [],
         ];
     }
 
@@ -203,6 +294,32 @@ class ActionTasks
         $category = Str::of((string) $category)->trim()->lower()->toString();
 
         return in_array($category, self::VALID_CATEGORIES, true) ? $category : 'product';
+    }
+
+    private function normalizeTaskType(mixed $taskType): string
+    {
+        $taskType = Str::of((string) $taskType)->trim()->lower()->snake()->toString();
+
+        return in_array($taskType, self::VALID_TASK_TYPES, true) ? $taskType : 'other';
+    }
+
+    private function normalizeMinutes(mixed $minutes): ?int
+    {
+        if ($minutes === null || $minutes === '') {
+            return null;
+        }
+
+        return max(5, min(480, (int) $minutes));
+    }
+
+    private function normalizeStringList(mixed $items, int $maxItems, int $limit): array
+    {
+        return collect(is_array($items) ? $items : [])
+            ->map(fn (mixed $item): string => $this->limit($item, $limit))
+            ->filter(fn (string $item): bool => $item !== '')
+            ->take($maxItems)
+            ->values()
+            ->all();
     }
 
     private function limit(mixed $value, int $limit): string

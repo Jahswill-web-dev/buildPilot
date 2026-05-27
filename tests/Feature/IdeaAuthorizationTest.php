@@ -4,6 +4,7 @@ use App\Jobs\GenerateIdeaRoadmap;
 use App\Models\Idea;
 use App\Models\User;
 use App\Services\ActionTasks\ActionTasks;
+use App\Services\Ai\PhaseTaskGenerator;
 use App\Services\Ai\RoadmapGenerator;
 use App\Services\Checklists\ChecklistItems;
 use App\Services\CoreFeatures\CoreFeatures;
@@ -498,6 +499,217 @@ test('missing global action task phases return not found', function () {
     $this->actingAs($user)
         ->get("/ideas/{$idea->id}/tasks/phases/missing")
         ->assertNotFound();
+});
+
+test('idea owners can generate tasks for a roadmap phase', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'target_user' => generatedTargetUser(),
+        'problem_statement' => 'Solo SaaS founders need a focused plan.',
+        'desired_outcome' => 'A clear launch checklist.',
+        'core_features' => generatedCoreFeatures(),
+        'mvp_scope' => generatedMvpScope(),
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->app->instance(PhaseTaskGenerator::class, new class extends PhaseTaskGenerator
+    {
+        public function __construct()
+        {
+        }
+
+        public function generate(Idea $idea, array $phase, array $completedTasks): array
+        {
+            expect($phase['slug'])->toBe('validate')
+                ->and(collect($completedTasks)->pluck('id')->all())->toBe(['task-2', 'task-4']);
+
+            return [
+                [
+                    'id' => 'validate-1-write-interview-script',
+                    'title' => 'Write a five-question interview script',
+                    'description' => 'Create exact questions for founder interviews.',
+                    'status' => ActionTasks::PENDING,
+                    'phase' => 'Validate',
+                    'phaseSlug' => 'validate',
+                    'priority' => 'High',
+                    'category' => 'validation',
+                    'taskType' => 'user_interview',
+                    'whyItMatters' => 'It keeps validation conversations focused.',
+                    'steps' => ['Write five questions', 'Add a closing ask'],
+                    'definitionOfDone' => 'The script is ready to send.',
+                    'deliverable' => 'Interview script',
+                    'estimatedTimeMinutes' => 30,
+                    'order' => 1,
+                    'interviewQuestions' => ['What do you do today when planning a launch?'],
+                    'researchChecklist' => [],
+                    'copyExamples' => [],
+                    'outreachMessage' => '',
+                    'implementationNotes' => [],
+                    'acceptanceCriteria' => [],
+                    'metricsToTrack' => [],
+                ],
+            ];
+        }
+    });
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/phases/validate")
+        ->post("/ideas/{$idea->id}/tasks/phases/validate/generate")
+        ->assertRedirect("/ideas/{$idea->id}/tasks/phases/validate");
+
+    $idea->refresh();
+
+    expect($idea->action_tasks)->toHaveCount(2)
+        ->and(collect($idea->action_tasks)->pluck('id')->all())->toBe([
+            'task-2',
+            'validate-1-write-interview-script',
+        ])
+        ->and($idea->action_tasks[1])->toMatchArray([
+            'phaseSlug' => 'validate',
+            'category' => 'validation',
+            'taskType' => 'user_interview',
+            'deliverable' => 'Interview script',
+            'interviewQuestions' => ['What do you do today when planning a launch?'],
+        ]);
+});
+
+test('phase task generation failure keeps existing tasks unchanged', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->app->instance(PhaseTaskGenerator::class, new class extends PhaseTaskGenerator
+    {
+        public function __construct()
+        {
+        }
+
+        public function generate(Idea $idea, array $phase, array $completedTasks): array
+        {
+            throw new RuntimeException('AI failed');
+        }
+    });
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/phases/validate")
+        ->post("/ideas/{$idea->id}/tasks/phases/validate/generate")
+        ->assertRedirect("/ideas/{$idea->id}/tasks/phases/validate")
+        ->assertSessionHasErrors('tasks');
+
+    $idea->refresh();
+
+    expect($idea->action_tasks)->toBe(generatedActionTasks());
+});
+
+test('missing phase task generation returns not found', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->post("/ideas/{$idea->id}/tasks/phases/missing/generate")
+        ->assertNotFound();
+});
+
+test('users cannot generate phase tasks for another users idea', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $otherUser->id,
+        'name' => 'Private launch planner',
+        'description' => 'A private tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Private item')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->post("/ideas/{$idea->id}/tasks/phases/validate/generate")
+        ->assertForbidden();
+});
+
+test('idea owners can view a dedicated task detail page', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_phases' => generatedActionPhases(),
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->get("/ideas/{$idea->id}/tasks/items/task-1")
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Ideas/TaskShow')
+            ->where('idea.id', $idea->id)
+            ->where('task.id', 'task-1')
+            ->where('task.title', 'Interview five target users')
+            ->where('phase.slug', 'validate'));
+});
+
+test('missing task detail pages return not found', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->get("/ideas/{$idea->id}/tasks/items/missing-task")
+        ->assertNotFound();
+});
+
+test('users cannot view another users task detail page', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $otherUser->id,
+        'name' => 'Private launch planner',
+        'description' => 'A private tool for planning launches.',
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Private item')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->get("/ideas/{$idea->id}/tasks/items/task-1")
+        ->assertForbidden();
 });
 
 test('idea task status updates persist', function () {

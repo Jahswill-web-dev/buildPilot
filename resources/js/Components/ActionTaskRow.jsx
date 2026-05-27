@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { CheckCircle2, Circle } from 'lucide-react';
 
 const priorityStyles = {
@@ -13,9 +13,8 @@ const categoryLabels = {
     validation: 'Validation',
 };
 
-export default function ActionTaskRow({ ideaId, task, compact = false, onOpen = null, showCategory = false }) {
+export default function ActionTaskRow({ ideaId, task, compact = false, showCategory = false }) {
     const isCompleted = task.status === 'completed';
-    const ContentWrapper = onOpen ? 'button' : 'div';
 
     const toggle = (event) => {
         event.stopPropagation();
@@ -29,8 +28,8 @@ export default function ActionTaskRow({ ideaId, task, compact = false, onOpen = 
 
     return (
         <article className={`rounded-lg border border-white/10 bg-zinc-950/55 p-4 shadow-sm shadow-black/20 transition hover:border-teal-500/30 hover:bg-white/[0.045] ${isCompleted ? 'opacity-75' : ''}`}>
-            <ContentWrapper
-                {...(onOpen ? { type: 'button', onClick: () => onOpen(task) } : {})}
+            <Link
+                href={`/ideas/${ideaId}/tasks/items/${task.id}`}
                 className="block w-full rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
             >
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -56,7 +55,7 @@ export default function ActionTaskRow({ ideaId, task, compact = false, onOpen = 
                         {task.description}
                     </p>
                 ) : null}
-            </ContentWrapper>
+            </Link>
 
             <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-zinc-400 transition hover:text-teal-100 focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-500 focus-within:ring-offset-2 focus-within:ring-offset-zinc-950">
                 <input
