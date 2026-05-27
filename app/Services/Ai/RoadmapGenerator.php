@@ -95,6 +95,10 @@ class RoadmapGenerator
             ]);
 
             return $this->fallback();
+        } finally {
+            if (function_exists('set_time_limit')) {
+                set_time_limit(0);
+            }
         }
     }
 
