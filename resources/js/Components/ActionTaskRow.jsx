@@ -13,21 +13,42 @@ const categoryLabels = {
     validation: 'Validation',
 };
 
-export default function ActionTaskRow({ ideaId, task, compact = false, showCategory = false }) {
+export default function ActionTaskRow({
+    ideaId,
+    task,
+    compact = false,
+    showCategory = false,
+    onStatusChange = null,
+    draggableAttributes = {},
+    draggableListeners = {},
+    dragHandleRef = null,
+    isDragging = false,
+    style = undefined,
+}) {
     const isCompleted = task.status === 'completed';
 
     const toggle = (event) => {
         event.stopPropagation();
+        const status = event.target.checked ? 'completed' : 'pending';
+
+        if (onStatusChange) {
+            onStatusChange(task.id, status);
+
+            return;
+        }
 
         router.patch(`/ideas/${ideaId}/tasks/${task.id}`, {
-            status: event.target.checked ? 'completed' : 'pending',
+            status,
         }, {
             preserveScroll: true,
         });
     };
 
     return (
-        <article className={`rounded-lg border border-white/10 bg-zinc-950/55 p-4 shadow-sm shadow-black/20 transition hover:border-teal-500/30 hover:bg-white/[0.045] ${isCompleted ? 'opacity-75' : ''}`}>
+        <article
+            style={style}
+            className={`rounded-lg border border-white/10 bg-zinc-950/55 p-4 shadow-sm shadow-black/20 transition hover:border-teal-500/30 hover:bg-white/[0.045] ${isCompleted ? 'opacity-75' : ''} ${isDragging ? 'opacity-60 shadow-xl shadow-black/40' : ''}`}
+        >
             <Link
                 href={`/ideas/${ideaId}/tasks/items/${task.id}`}
                 className="block w-full rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
@@ -57,21 +78,36 @@ export default function ActionTaskRow({ ideaId, task, compact = false, showCateg
                 ) : null}
             </Link>
 
-            <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-zinc-400 transition hover:text-teal-100 focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-500 focus-within:ring-offset-2 focus-within:ring-offset-zinc-950">
-                <input
-                    type="checkbox"
-                    checked={isCompleted}
-                    onChange={toggle}
-                    className="sr-only"
-                    aria-label={`Mark ${task.title} ${isCompleted ? 'pending' : 'completed'}`}
-                />
-                {isCompleted ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
-                ) : (
-                    <Circle className="h-4 w-4 text-zinc-500" aria-hidden="true" />
-                )}
-                {isCompleted ? 'Completed' : 'Mark complete'}
-            </label>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-zinc-400 transition hover:text-teal-100 focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-500 focus-within:ring-offset-2 focus-within:ring-offset-zinc-950">
+                    <input
+                        type="checkbox"
+                        checked={isCompleted}
+                        onChange={toggle}
+                        className="sr-only"
+                        aria-label={`Mark ${task.title} ${isCompleted ? 'pending' : 'completed'}`}
+                    />
+                    {isCompleted ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+                    ) : (
+                        <Circle className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+                    )}
+                    {isCompleted ? 'Completed' : 'Mark complete'}
+                </label>
+
+                {dragHandleRef ? (
+                    <button
+                        type="button"
+                        ref={dragHandleRef}
+                        {...draggableAttributes}
+                        {...draggableListeners}
+                        className="inline-flex cursor-grab items-center rounded-lg px-2 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 transition hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 active:cursor-grabbing"
+                        aria-label={`Drag ${task.title}`}
+                    >
+                        Drag
+                    </button>
+                ) : null}
+            </div>
         </article>
     );
 }

@@ -735,6 +735,29 @@ test('idea task status updates persist', function () {
     expect($task['status'])->toBe('completed');
 });
 
+test('completed idea tasks can be marked pending again', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/phases/build")
+        ->patch("/ideas/{$idea->id}/tasks/task-2", ['status' => 'pending'])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/phases/build");
+
+    $idea->refresh();
+    $task = collect($idea->action_tasks)->firstWhere('id', 'task-2');
+
+    expect($task['status'])->toBe('pending');
+});
+
 test('fallback action tasks can be completed for older ideas', function () {
     $user = User::factory()->create();
 

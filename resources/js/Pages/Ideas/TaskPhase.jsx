@@ -1,5 +1,16 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import {
+    DndContext,
+    KeyboardSensor,
+    PointerSensor,
+    closestCenter,
+    useDraggable,
+    useDroppable,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import ActionTaskRow, { taskProgress } from '../../Components/ActionTaskRow';
 import AppLayout from '../../Components/AppLayout';
 import Button from '../../Components/Button';
@@ -24,13 +35,62 @@ const shortCategoryLabels = {
 
 export default function TaskPhase({ idea, category, phase }) {
     const generateForm = useForm({});
-    const progress = taskProgress(phase.tasks);
+    const [tasks, setTasks] = useState(phase.tasks);
+    const [taskError, setTaskError] = useState(null);
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor),
+    );
+    const progress = taskProgress(tasks);
     const isGlobalPhase = !category;
+
+    useEffect(() => {
+        setTasks(phase.tasks);
+    }, [phase.tasks]);
 
     const generateTasks = () => {
         generateForm.post(`/ideas/${idea.id}/tasks/phases/${phase.slug}/generate`, {
             preserveScroll: true,
         });
+    };
+
+    const updateTaskStatus = (taskId, status) => {
+        const previousTasks = tasks;
+        const task = previousTasks.find((item) => item.id === taskId);
+
+        if (!task || task.status === status) {
+            return;
+        }
+
+        setTaskError(null);
+        setTasks(previousTasks.map((item) => (
+            item.id === taskId ? { ...item, status } : item
+        )));
+
+        router.patch(`/ideas/${idea.id}/tasks/${taskId}`, {
+            status,
+        }, {
+            preserveScroll: true,
+            onError: () => {
+                setTasks(previousTasks);
+                setTaskError('Task status could not be saved. Try again.');
+            },
+        });
+    };
+
+    const handleDragEnd = (event) => {
+        const taskId = event.active?.id;
+        const status = event.over?.id;
+
+        if (!taskId || !['pending', 'completed'].includes(status)) {
+            return;
+        }
+
+        updateTaskStatus(taskId, status);
     };
 
     return (
@@ -48,6 +108,7 @@ export default function TaskPhase({ idea, category, phase }) {
             </div>
 
             <ErrorSummary errors={generateForm.errors} />
+            <ErrorSummary errors={taskError ? { taskStatus: taskError } : {}} />
 
             <header className="border-b border-white/10 pb-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -107,42 +168,88 @@ export default function TaskPhase({ idea, category, phase }) {
                 </div>
             ) : null}
 
-            <section className="mt-6 grid gap-4 lg:grid-cols-2">
-                {columns.map((column) => {
-                    const tasks = phase.tasks.filter((task) => task.status === column.status);
-
-                    return (
-                        <div key={column.status} className="min-w-0 rounded-lg border border-white/10 bg-white/[0.025] p-4">
-                            <div className="mb-4 flex items-center justify-between gap-3">
-                                <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-500">
-                                    {column.title}
-                                </h2>
-                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-zinc-400">
-                                    {tasks.length}
-                                </span>
-                            </div>
-
-                            {tasks.length ? (
-                                <div className="grid gap-3">
-                                    {tasks.map((task) => (
-                                        <ActionTaskRow
-                                            key={task.id}
-                                            ideaId={idea.id}
-                                            task={task}
-                                            showCategory={isGlobalPhase}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="rounded-lg border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
-                                    No tasks here.
-                                </div>
-                            )}
-                    </div>
-                );
-            })}
-        </section>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <section className="mt-6 grid gap-4 lg:grid-cols-2">
+                    {columns.map((column) => (
+                        <TaskColumn
+                            key={column.status}
+                            column={column}
+                            tasks={tasks.filter((task) => task.status === column.status)}
+                            ideaId={idea.id}
+                            showCategory={isGlobalPhase}
+                            onStatusChange={updateTaskStatus}
+                        />
+                    ))}
+                </section>
+            </DndContext>
         </AppLayout>
+    );
+}
+
+function TaskColumn({ column, tasks, ideaId, showCategory, onStatusChange }) {
+    const { isOver, setNodeRef } = useDroppable({
+        id: column.status,
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={`min-w-0 rounded-lg border p-4 transition ${isOver ? 'border-teal-400/60 bg-teal-500/[0.08]' : 'border-white/10 bg-white/[0.025]'}`}
+        >
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-500">
+                    {column.title}
+                </h2>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium text-zinc-400">
+                    {tasks.length}
+                </span>
+            </div>
+
+            {tasks.length ? (
+                <div className="grid gap-3">
+                    {tasks.map((task) => (
+                        <DraggableTask
+                            key={task.id}
+                            ideaId={ideaId}
+                            task={task}
+                            showCategory={showCategory}
+                            onStatusChange={onStatusChange}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="rounded-lg border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">
+                    No tasks here.
+                </div>
+            )}
+        </div>
+    );
+}
+
+function DraggableTask({ ideaId, task, showCategory, onStatusChange }) {
+    const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, isDragging } = useDraggable({
+        id: task.id,
+    });
+    const style = transform ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 40,
+        position: 'relative',
+    } : undefined;
+
+    return (
+        <div ref={setNodeRef}>
+            <ActionTaskRow
+                ideaId={ideaId}
+                task={task}
+                showCategory={showCategory}
+                onStatusChange={onStatusChange}
+                draggableAttributes={attributes}
+                draggableListeners={listeners}
+                dragHandleRef={setActivatorNodeRef}
+                isDragging={isDragging}
+                style={style}
+            />
+        </div>
     );
 }
 
