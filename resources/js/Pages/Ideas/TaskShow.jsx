@@ -1,7 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, CheckCircle2, Circle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import AppLayout from '../../Components/AppLayout';
 import Button from '../../Components/Button';
+import InlineEditor from '../../Components/InlineEditor';
 
 const categoryLabels = {
     product: 'Product task',
@@ -10,21 +12,54 @@ const categoryLabels = {
 };
 
 export default function TaskShow({ idea, task, phase }) {
-    const isCompleted = task.status === 'completed';
+    const [editableTask, setEditableTask] = useState(task);
+    const isCompleted = editableTask.status === 'completed';
     const nextStatus = isCompleted ? 'pending' : 'completed';
     const backHref = phase?.slug ? `/ideas/${idea.id}/tasks/phases/${phase.slug}` : `/ideas/${idea.id}/tasks`;
+
+    useEffect(() => {
+        setEditableTask(task);
+    }, [task]);
 
     const updateStatus = () => {
         router.patch(`/ideas/${idea.id}/tasks/${task.id}`, {
             status: nextStatus,
         }, {
             preserveScroll: true,
+            onSuccess: () => setEditableTask((currentTask) => ({
+                ...currentTask,
+                status: nextStatus,
+            })),
         });
+    };
+
+    const updateTask = (field, value, callbacks) => {
+        const nextTask = {
+            ...editableTask,
+            [field]: value,
+        };
+
+        setEditableTask(nextTask);
+
+        router.patch(`/ideas/${idea.id}/tasks/${task.id}`, {
+            [field]: value,
+        }, {
+            preserveScroll: true,
+            ...callbacks,
+        });
+    };
+
+    const updateTaskListItem = (field, index, value, callbacks) => {
+        const nextItems = editableTask[field].map((item, itemIndex) => (
+            itemIndex === index ? value : item
+        ));
+
+        updateTask(field, nextItems, callbacks);
     };
 
     return (
         <AppLayout maxWidth="max-w-4xl">
-            <Head title={`${task.title} - ${idea.name}`} />
+            <Head title={`${editableTask.title} - ${idea.name}`} />
 
             <div className="mb-6">
                 <Link
@@ -41,14 +76,26 @@ export default function TaskShow({ idea, task, phase }) {
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                                {categoryLabels[task.category] ?? 'Product task'}
+                                {categoryLabels[editableTask.category] ?? 'Product task'}
                             </p>
-                            <h1 className="mt-2 break-words text-2xl font-semibold leading-8 text-white">
-                                {task.title}
-                            </h1>
-                            <p className="mt-3 break-words text-sm leading-6 text-zinc-400">
-                                {task.description}
-                            </p>
+                            <div className="mt-2">
+                                <InlineEditor
+                                    label="task title"
+                                    value={editableTask.title}
+                                    displayClassName="block break-words text-2xl font-semibold leading-8 text-white transition hover:text-teal-100"
+                                    inputClassName="font-semibold leading-8"
+                                    onSave={(value, callbacks) => updateTask('title', value, callbacks)}
+                                />
+                            </div>
+                            <div className="mt-3">
+                                <InlineEditor
+                                    label="task description"
+                                    value={editableTask.description}
+                                    multiline
+                                    displayClassName="block whitespace-pre-line break-words text-sm leading-6 text-zinc-400 transition hover:text-zinc-200"
+                                    onSave={(value, callbacks) => updateTask('description', value, callbacks)}
+                                />
+                            </div>
                         </div>
 
                         <Button
@@ -67,28 +114,75 @@ export default function TaskShow({ idea, task, phase }) {
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2">
-                        <Badge>{phase?.title ?? task.phase}</Badge>
-                        {task.taskType && task.taskType !== 'other' ? <Badge tone="sky">{formatLabel(task.taskType)}</Badge> : null}
-                        <Badge>{task.priority} priority</Badge>
-                        {task.estimatedTimeMinutes ? <Badge>{task.estimatedTimeMinutes} min</Badge> : null}
+                        <Badge>{phase?.title ?? editableTask.phase}</Badge>
+                        {editableTask.taskType && editableTask.taskType !== 'other' ? <Badge tone="sky">{formatLabel(editableTask.taskType)}</Badge> : null}
+                        <Badge>{editableTask.priority} priority</Badge>
+                        {editableTask.estimatedTimeMinutes ? <Badge>{editableTask.estimatedTimeMinutes} min</Badge> : null}
                         <Badge tone={isCompleted ? 'green' : 'amber'}>{isCompleted ? 'Completed' : 'Pending'}</Badge>
                     </div>
                 </header>
 
                 <section className="grid gap-4 md:grid-cols-2">
-                    <InfoBlock title="Deliverable" text={task.deliverable} />
-                    <InfoBlock title="Definition of done" text={task.definitionOfDone} />
-                    <InfoBlock title="Why it matters" text={task.whyItMatters} wide />
+                    <InfoBlock
+                        title="Deliverable"
+                        text={editableTask.deliverable}
+                        onSave={(value, callbacks) => updateTask('deliverable', value, callbacks)}
+                    />
+                    <InfoBlock
+                        title="Definition of done"
+                        text={editableTask.definitionOfDone}
+                        onSave={(value, callbacks) => updateTask('definitionOfDone', value, callbacks)}
+                    />
+                    <InfoBlock
+                        title="Why it matters"
+                        text={editableTask.whyItMatters}
+                        wide
+                        onSave={(value, callbacks) => updateTask('whyItMatters', value, callbacks)}
+                    />
                 </section>
 
-                <DetailList title="Steps" items={task.steps} ordered />
-                <DetailList title="Interview questions" items={task.interviewQuestions} />
-                <DetailList title="Research checklist" items={task.researchChecklist} />
-                <DetailList title="Copy examples" items={task.copyExamples} />
-                <InfoBlock title="Outreach message" text={task.outreachMessage} preserveLines />
-                <DetailList title="Implementation notes" items={task.implementationNotes} />
-                <DetailList title="Acceptance criteria" items={task.acceptanceCriteria} />
-                <DetailList title="Metrics to track" items={task.metricsToTrack} />
+                <DetailList
+                    title="Steps"
+                    items={editableTask.steps}
+                    ordered
+                    onSave={(index, value, callbacks) => updateTaskListItem('steps', index, value, callbacks)}
+                />
+                <DetailList
+                    title="Interview questions"
+                    items={editableTask.interviewQuestions}
+                    onSave={(index, value, callbacks) => updateTaskListItem('interviewQuestions', index, value, callbacks)}
+                />
+                <DetailList
+                    title="Research checklist"
+                    items={editableTask.researchChecklist}
+                    onSave={(index, value, callbacks) => updateTaskListItem('researchChecklist', index, value, callbacks)}
+                />
+                <DetailList
+                    title="Copy examples"
+                    items={editableTask.copyExamples}
+                    onSave={(index, value, callbacks) => updateTaskListItem('copyExamples', index, value, callbacks)}
+                />
+                <InfoBlock
+                    title="Outreach message"
+                    text={editableTask.outreachMessage}
+                    preserveLines
+                    onSave={(value, callbacks) => updateTask('outreachMessage', value, callbacks)}
+                />
+                <DetailList
+                    title="Implementation notes"
+                    items={editableTask.implementationNotes}
+                    onSave={(index, value, callbacks) => updateTaskListItem('implementationNotes', index, value, callbacks)}
+                />
+                <DetailList
+                    title="Acceptance criteria"
+                    items={editableTask.acceptanceCriteria}
+                    onSave={(index, value, callbacks) => updateTaskListItem('acceptanceCriteria', index, value, callbacks)}
+                />
+                <DetailList
+                    title="Metrics to track"
+                    items={editableTask.metricsToTrack}
+                    onSave={(index, value, callbacks) => updateTaskListItem('metricsToTrack', index, value, callbacks)}
+                />
             </article>
         </AppLayout>
     );
@@ -109,7 +203,7 @@ function Badge({ children, tone = 'default' }) {
     );
 }
 
-function InfoBlock({ title, text, preserveLines = false, wide = false }) {
+function InfoBlock({ title, text, preserveLines = false, wide = false, onSave }) {
     if (!text) {
         return null;
     }
@@ -117,14 +211,20 @@ function InfoBlock({ title, text, preserveLines = false, wide = false }) {
     return (
         <div className={`min-w-0 rounded-lg border border-white/10 bg-white/[0.025] p-4 ${wide ? 'md:col-span-2' : ''}`}>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">{title}</h2>
-            <p className={`mt-2 break-words text-sm leading-6 text-zinc-300 ${preserveLines ? 'whitespace-pre-line' : ''}`}>
-                {text}
-            </p>
+            <div className="mt-2">
+                <InlineEditor
+                    label={title.toLowerCase()}
+                    value={text}
+                    multiline={preserveLines}
+                    displayClassName={`block break-words text-sm leading-6 text-zinc-300 transition hover:text-zinc-100 ${preserveLines ? 'whitespace-pre-line' : ''}`}
+                    onSave={onSave}
+                />
+            </div>
         </div>
     );
 }
 
-function DetailList({ title, items = [], ordered = false }) {
+function DetailList({ title, items = [], ordered = false, onSave }) {
     if (!items.length) {
         return null;
     }
@@ -137,7 +237,13 @@ function DetailList({ title, items = [], ordered = false }) {
             <List className={`mt-3 space-y-2 text-sm leading-6 text-zinc-300 ${ordered ? 'list-decimal pl-5' : 'list-disc pl-5'}`}>
                 {items.map((item, index) => (
                     <li key={`${title}-${index}`} className="break-words">
-                        {item}
+                        <InlineEditor
+                            label={`${title.toLowerCase()} item`}
+                            value={item}
+                            multiline
+                            displayClassName="block whitespace-pre-line break-words text-sm leading-6 text-zinc-300 transition hover:text-zinc-100"
+                            onSave={(value, callbacks) => onSave(index, value, callbacks)}
+                        />
                     </li>
                 ))}
             </List>

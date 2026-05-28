@@ -131,7 +131,27 @@ class IdeaTaskController extends Controller
         $this->authorizeOwner($idea);
 
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:pending,completed'],
+            'status' => ['sometimes', 'required', 'string', 'in:pending,completed'],
+            'title' => ['sometimes', 'required', 'string', 'max:140'],
+            'description' => ['sometimes', 'required', 'string', 'max:500'],
+            'whyItMatters' => ['sometimes', 'required', 'string', 'max:500'],
+            'definitionOfDone' => ['sometimes', 'required', 'string', 'max:500'],
+            'deliverable' => ['sometimes', 'required', 'string', 'max:300'],
+            'steps' => ['sometimes', 'required', 'array', 'max:8'],
+            'steps.*' => ['required', 'string', 'max:240'],
+            'interviewQuestions' => ['sometimes', 'required', 'array', 'max:8'],
+            'interviewQuestions.*' => ['required', 'string', 'max:260'],
+            'researchChecklist' => ['sometimes', 'required', 'array', 'max:10'],
+            'researchChecklist.*' => ['required', 'string', 'max:220'],
+            'copyExamples' => ['sometimes', 'required', 'array', 'max:6'],
+            'copyExamples.*' => ['required', 'string', 'max:500'],
+            'outreachMessage' => ['sometimes', 'required', 'string', 'max:700'],
+            'implementationNotes' => ['sometimes', 'required', 'array', 'max:10'],
+            'implementationNotes.*' => ['required', 'string', 'max:260'],
+            'acceptanceCriteria' => ['sometimes', 'required', 'array', 'max:10'],
+            'acceptanceCriteria.*' => ['required', 'string', 'max:260'],
+            'metricsToTrack' => ['sometimes', 'required', 'array', 'max:10'],
+            'metricsToTrack.*' => ['required', 'string', 'max:180'],
         ]);
 
         $found = false;
@@ -145,7 +165,7 @@ class IdeaTaskController extends Controller
 
                 return [
                     ...$task,
-                    'status' => $validated['status'],
+                    ...$validated,
                 ];
             })
             ->values()
