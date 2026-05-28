@@ -938,6 +938,74 @@ test('authenticated users can update their idea name and description', function 
         ->and($idea->description)->toBe('New description');
 });
 
+test('authenticated users can update generated idea sections', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'target_user' => generatedTargetUser(),
+        'problem_statement' => 'Old problem statement.',
+        'desired_outcome' => 'Old desired outcome.',
+        'core_features' => generatedCoreFeatures(),
+        'mvp_scope' => generatedMvpScope(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->patch("/ideas/{$idea->id}", [
+            'target_user' => [
+                'user_type' => 'Agency owners',
+                'main_problem' => 'They need clearer client onboarding.',
+                'current_workaround' => 'They use scattered docs and calls.',
+                'why_they_care' => 'A cleaner flow helps them start projects faster.',
+            ],
+        ])
+        ->assertRedirect("/ideas/{$idea->id}");
+
+    $this->actingAs($user)
+        ->patch("/ideas/{$idea->id}", ['problem_statement' => 'Agency owners need a repeatable way to onboard new clients.'])
+        ->assertRedirect("/ideas/{$idea->id}");
+
+    $this->actingAs($user)
+        ->patch("/ideas/{$idea->id}", ['desired_outcome' => 'The user should leave with a reusable onboarding flow.'])
+        ->assertRedirect("/ideas/{$idea->id}");
+
+    $this->actingAs($user)
+        ->patch("/ideas/{$idea->id}", [
+            'core_features' => [
+                ['feature' => 'Client intake', 'reason' => 'Collects the details needed to start well.'],
+                ['feature' => 'Roadmap generation', 'reason' => 'Turns onboarding context into a plan.'],
+                ['feature' => 'Checklist tracking', 'reason' => 'Keeps project setup moving.'],
+            ],
+        ])
+        ->assertRedirect("/ideas/{$idea->id}");
+
+    $this->actingAs($user)
+        ->patch("/ideas/{$idea->id}", [
+            'mvp_scope' => [
+                'must_have' => ['Capture client details', 'Create onboarding checklist'],
+                'nice_to_have' => ['Export onboarding plan'],
+                'later' => ['Client portal'],
+            ],
+        ])
+        ->assertRedirect("/ideas/{$idea->id}");
+
+    $idea->refresh();
+
+    expect($idea->target_user['user_type'])->toBe('Agency owners')
+        ->and($idea->target_user['main_problem'])->toBe('They need clearer client onboarding.')
+        ->and($idea->problem_statement)->toBe('Agency owners need a repeatable way to onboard new clients.')
+        ->and($idea->desired_outcome)->toBe('The user should leave with a reusable onboarding flow.')
+        ->and($idea->core_features[0])->toBe([
+            'feature' => 'Client intake',
+            'reason' => 'Collects the details needed to start well.',
+        ])
+        ->and($idea->mvp_scope['must_have'])->toBe(['Capture client details', 'Create onboarding checklist']);
+});
+
 test('authenticated users can add edit delete and toggle checklist items', function () {
     $user = User::factory()->create();
 
@@ -1016,6 +1084,47 @@ test('invalid idea and checklist updates fail validation', function () {
         ->patch("/ideas/{$idea->id}", ['name' => ''])
         ->assertRedirect("/ideas/{$idea->id}")
         ->assertSessionHasErrors('name');
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}")
+        ->patch("/ideas/{$idea->id}", [
+            'target_user' => [
+                'user_type' => '',
+                'main_problem' => 'They need a focused plan.',
+                'current_workaround' => 'They use notes.',
+                'why_they_care' => 'They want to move faster.',
+            ],
+        ])
+        ->assertRedirect("/ideas/{$idea->id}")
+        ->assertSessionHasErrors('target_user.user_type');
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}")
+        ->patch("/ideas/{$idea->id}", ['problem_statement' => ''])
+        ->assertRedirect("/ideas/{$idea->id}")
+        ->assertSessionHasErrors('problem_statement');
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}")
+        ->patch("/ideas/{$idea->id}", [
+            'core_features' => [
+                ['feature' => '', 'reason' => 'Missing a feature title.'],
+            ],
+        ])
+        ->assertRedirect("/ideas/{$idea->id}")
+        ->assertSessionHasErrors('core_features.0.feature');
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}")
+        ->patch("/ideas/{$idea->id}", [
+            'mvp_scope' => [
+                'must_have' => [''],
+                'nice_to_have' => ['Export roadmap'],
+                'later' => ['Team collaboration'],
+            ],
+        ])
+        ->assertRedirect("/ideas/{$idea->id}")
+        ->assertSessionHasErrors('mvp_scope.must_have.0');
 
     $this->actingAs($user)
         ->from("/ideas/{$idea->id}")

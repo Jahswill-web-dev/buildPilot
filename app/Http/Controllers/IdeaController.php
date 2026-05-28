@@ -81,6 +81,23 @@ class IdeaController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'description' => ['sometimes', 'required', 'string', 'max:2000'],
+            'target_user' => ['sometimes', 'required', 'array:user_type,main_problem,current_workaround,why_they_care'],
+            'target_user.user_type' => ['required_with:target_user', 'string', 'max:500'],
+            'target_user.main_problem' => ['required_with:target_user', 'string', 'max:500'],
+            'target_user.current_workaround' => ['required_with:target_user', 'string', 'max:500'],
+            'target_user.why_they_care' => ['required_with:target_user', 'string', 'max:500'],
+            'problem_statement' => ['sometimes', 'required', 'string', 'max:800'],
+            'desired_outcome' => ['sometimes', 'required', 'string', 'max:800'],
+            'core_features' => ['sometimes', 'required', 'array', 'min:1'],
+            'core_features.*.feature' => ['required_with:core_features', 'string', 'max:160'],
+            'core_features.*.reason' => ['required_with:core_features', 'string', 'max:500'],
+            'mvp_scope' => ['sometimes', 'required', 'array:must_have,nice_to_have,later'],
+            'mvp_scope.must_have' => ['required_with:mvp_scope', 'array'],
+            'mvp_scope.must_have.*' => ['required', 'string', 'max:200'],
+            'mvp_scope.nice_to_have' => ['required_with:mvp_scope', 'array'],
+            'mvp_scope.nice_to_have.*' => ['required', 'string', 'max:200'],
+            'mvp_scope.later' => ['required_with:mvp_scope', 'array'],
+            'mvp_scope.later.*' => ['required', 'string', 'max:200'],
         ]);
 
         $idea->update($validated);

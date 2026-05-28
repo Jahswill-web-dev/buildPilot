@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { taskProgress } from '../../Components/ActionTaskRow';
@@ -16,12 +17,52 @@ const categoryLabels = {
 export default function Show({ idea }) {
     const progress = taskProgress(idea.actionTasks);
     const previewPhases = attachTaskCountsToPhases(idea.actionPhases ?? [], idea.actionTasks).slice(0, 3);
+    const [targetUser, setTargetUser] = useState(idea.targetUser);
+    const [coreFeatures, setCoreFeatures] = useState(idea.coreFeatures);
+    const [mvpScope, setMvpScope] = useState(idea.mvpScope);
+
+    useEffect(() => {
+        setTargetUser(idea.targetUser);
+        setCoreFeatures(idea.coreFeatures);
+        setMvpScope(idea.mvpScope);
+    }, [idea.id, idea.targetUser, idea.coreFeatures, idea.mvpScope]);
 
     const updateIdea = (field, value, callbacks) => {
         router.patch(`/ideas/${idea.id}`, { [field]: value }, {
             preserveScroll: true,
             ...callbacks,
         });
+    };
+
+    const updateTargetUserField = (field, value, callbacks) => {
+        const nextTargetUser = {
+            ...targetUser,
+            [field]: value,
+        };
+
+        setTargetUser(nextTargetUser);
+        updateIdea('target_user', nextTargetUser, callbacks);
+    };
+
+    const updateCoreFeatureField = (index, field, value, callbacks) => {
+        const nextCoreFeatures = coreFeatures.map((feature, featureIndex) => (
+            featureIndex === index ? { ...feature, [field]: value } : feature
+        ));
+
+        setCoreFeatures(nextCoreFeatures);
+        updateIdea('core_features', nextCoreFeatures, callbacks);
+    };
+
+    const updateMvpScopeItem = (group, index, value, callbacks) => {
+        const nextMvpScope = {
+            ...mvpScope,
+            [group]: mvpScope[group].map((item, itemIndex) => (
+                itemIndex === index ? value : item
+            )),
+        };
+
+        setMvpScope(nextMvpScope);
+        updateIdea('mvp_scope', nextMvpScope, callbacks);
     };
 
     return (
@@ -64,17 +105,33 @@ export default function Show({ idea }) {
                     </div>
                 </header>
 
-                {idea.targetUser ? (
+                {targetUser ? (
                     <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-zinc-500">
                             Target User
                         </h2>
 
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <TargetUserField label="User type" value={idea.targetUser.user_type} />
-                            <TargetUserField label="Main problem" value={idea.targetUser.main_problem} />
-                            <TargetUserField label="Current workaround" value={idea.targetUser.current_workaround} />
-                            <TargetUserField label="Why they care" value={idea.targetUser.why_they_care} />
+                            <TargetUserField
+                                label="User type"
+                                value={targetUser.user_type}
+                                onSave={(value, callbacks) => updateTargetUserField('user_type', value, callbacks)}
+                            />
+                            <TargetUserField
+                                label="Main problem"
+                                value={targetUser.main_problem}
+                                onSave={(value, callbacks) => updateTargetUserField('main_problem', value, callbacks)}
+                            />
+                            <TargetUserField
+                                label="Current workaround"
+                                value={targetUser.current_workaround}
+                                onSave={(value, callbacks) => updateTargetUserField('current_workaround', value, callbacks)}
+                            />
+                            <TargetUserField
+                                label="Why they care"
+                                value={targetUser.why_they_care}
+                                onSave={(value, callbacks) => updateTargetUserField('why_they_care', value, callbacks)}
+                            />
                         </div>
                     </section>
                 ) : null}
@@ -84,9 +141,13 @@ export default function Show({ idea }) {
                         <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-zinc-500">
                             Problem Statement
                         </h2>
-                        <p className={`break-words text-sm leading-6 ${isGenerationFailure(idea.problemStatement) ? 'text-zinc-500' : 'text-zinc-200'}`}>
-                            {idea.problemStatement}
-                        </p>
+                        <InlineEditor
+                            label="problem statement"
+                            value={idea.problemStatement}
+                            multiline
+                            displayClassName={`block whitespace-pre-line break-words text-sm leading-6 transition hover:text-zinc-100 ${isGenerationFailure(idea.problemStatement) ? 'text-zinc-500' : 'text-zinc-200'}`}
+                            onSave={(value, callbacks) => updateIdea('problem_statement', value, callbacks)}
+                        />
                     </section>
                 ) : null}
 
@@ -95,36 +156,57 @@ export default function Show({ idea }) {
                         <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-zinc-500">
                             Desired Outcome
                         </h2>
-                        <p className={`break-words text-sm leading-6 ${isGenerationFailure(idea.desiredOutcome) ? 'text-zinc-500' : 'text-zinc-200'}`}>
-                            {idea.desiredOutcome}
-                        </p>
+                        <InlineEditor
+                            label="desired outcome"
+                            value={idea.desiredOutcome}
+                            multiline
+                            displayClassName={`block whitespace-pre-line break-words text-sm leading-6 transition hover:text-zinc-100 ${isGenerationFailure(idea.desiredOutcome) ? 'text-zinc-500' : 'text-zinc-200'}`}
+                            onSave={(value, callbacks) => updateIdea('desired_outcome', value, callbacks)}
+                        />
                     </section>
                 ) : null}
 
-                {idea.coreFeatures ? (
+                {coreFeatures ? (
                     <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-zinc-500">
                             Core Features + User Flow
                         </h2>
 
                         <div className="divide-y divide-white/10">
-                            {idea.coreFeatures.map((feature, index) => (
-                                <CoreFeatureItem key={`${feature.feature}-${index}`} feature={feature} index={index} />
+                            {coreFeatures.map((feature, index) => (
+                                <CoreFeatureItem
+                                    key={`${feature.feature}-${index}`}
+                                    feature={feature}
+                                    index={index}
+                                    onSave={(field, value, callbacks) => updateCoreFeatureField(index, field, value, callbacks)}
+                                />
                             ))}
                         </div>
                     </section>
                 ) : null}
 
-                {idea.mvpScope ? (
+                {mvpScope ? (
                     <section className="rounded-lg border border-white/10 bg-white/[0.035] p-5">
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-zinc-500">
                             MVP Scope
                         </h2>
 
                         <div className="grid gap-5 md:grid-cols-3">
-                            <ScopeGroup title="Must-have" items={idea.mvpScope.must_have} />
-                            <ScopeGroup title="Nice-to-have" items={idea.mvpScope.nice_to_have} />
-                            <ScopeGroup title="Later" items={idea.mvpScope.later} />
+                            <ScopeGroup
+                                title="Must-have"
+                                items={mvpScope.must_have}
+                                onSave={(index, value, callbacks) => updateMvpScopeItem('must_have', index, value, callbacks)}
+                            />
+                            <ScopeGroup
+                                title="Nice-to-have"
+                                items={mvpScope.nice_to_have}
+                                onSave={(index, value, callbacks) => updateMvpScopeItem('nice_to_have', index, value, callbacks)}
+                            />
+                            <ScopeGroup
+                                title="Later"
+                                items={mvpScope.later}
+                                onSave={(index, value, callbacks) => updateMvpScopeItem('later', index, value, callbacks)}
+                            />
                         </div>
                     </section>
                 ) : null}
@@ -203,18 +285,22 @@ export default function Show({ idea }) {
     );
 }
 
-function TargetUserField({ label, value }) {
+function TargetUserField({ label, value, onSave }) {
     return (
         <div className="min-w-0">
             <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">{label}</h3>
-            <p className={`break-words text-sm leading-6 ${isGenerationFailure(value) ? 'text-zinc-500' : 'text-zinc-200'}`}>
-                {value}
-            </p>
+            <InlineEditor
+                label={label.toLowerCase()}
+                value={value}
+                multiline
+                displayClassName={`block whitespace-pre-line break-words text-sm leading-6 transition hover:text-zinc-100 ${isGenerationFailure(value) ? 'text-zinc-500' : 'text-zinc-200'}`}
+                onSave={onSave}
+            />
         </div>
     );
 }
 
-function CoreFeatureItem({ feature, index }) {
+function CoreFeatureItem({ feature, index, onSave }) {
     const isFailed = !feature.reason;
 
     return (
@@ -223,28 +309,42 @@ function CoreFeatureItem({ feature, index }) {
                 {index + 1}
             </span>
             <div className="min-w-0">
-                <h3 className={`break-words text-sm font-semibold ${isFailed ? 'text-zinc-400' : 'text-zinc-100'}`}>
-                    {feature.feature}
-                </h3>
-                {feature.reason ? (
-                    <p className="mt-1 break-words text-sm leading-6 text-zinc-400">{feature.reason}</p>
-                ) : null}
+                <InlineEditor
+                    label="core feature"
+                    value={feature.feature}
+                    displayClassName={`block break-words text-sm font-semibold transition hover:text-teal-100 ${isFailed ? 'text-zinc-400' : 'text-zinc-100'}`}
+                    inputClassName="font-semibold"
+                    onSave={(value, callbacks) => onSave('feature', value, callbacks)}
+                />
+                <div className="mt-2">
+                    <InlineEditor
+                        label="core feature reason"
+                        value={feature.reason ?? ''}
+                        multiline
+                        emptyText="Add user flow text"
+                        displayClassName={`block whitespace-pre-line break-words text-sm leading-6 transition hover:text-zinc-200 ${feature.reason ? 'text-zinc-400' : 'text-zinc-500'}`}
+                        onSave={(value, callbacks) => onSave('reason', value, callbacks)}
+                    />
+                </div>
             </div>
         </div>
     );
 }
 
-function ScopeGroup({ title, items = [] }) {
+function ScopeGroup({ title, items = [], onSave }) {
     return (
         <div className="min-w-0">
             <h3 className="mb-3 text-xs font-semibold uppercase text-zinc-500">{title}</h3>
             <ul className="space-y-2">
                 {items.map((item, index) => (
-                    <li
-                        key={`${title}-${item}-${index}`}
-                        className={`break-words text-sm leading-6 ${isGenerationFailure(item) ? 'text-zinc-500' : 'text-zinc-300'}`}
-                    >
-                        {item}
+                    <li key={`${title}-${item}-${index}`} className="min-w-0">
+                        <InlineEditor
+                            label={`${title.toLowerCase()} scope item`}
+                            value={item}
+                            multiline
+                            displayClassName={`block whitespace-pre-line break-words text-sm leading-6 transition hover:text-zinc-100 ${isGenerationFailure(item) ? 'text-zinc-500' : 'text-zinc-300'}`}
+                            onSave={(value, callbacks) => onSave(index, value, callbacks)}
+                        />
                     </li>
                 ))}
             </ul>

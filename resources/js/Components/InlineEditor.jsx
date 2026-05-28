@@ -1,70 +1,188 @@
-import { useState } from 'react';
-import { Edit3 } from 'lucide-react';
-import Button from './Button';
-import TextInput from './TextInput';
+import { useEffect, useRef, useState } from 'react';
 
-export default function InlineEditor({ value, multiline = false, label, displayClassName = '', inputClassName = '', onSave }) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(value);
-    const [processing, setProcessing] = useState(false);
+const AUTOSAVE_DELAY = 700;
+
+export default function InlineEditor({
+    value,
+    multiline = false,
+    label,
+    displayClassName = '',
+    inputClassName = '',
+    emptyText = '',
+    onSave,
+}) {
+    const [draft, setDraft] = useState(value ?? '');
+    const [lastSavedValue, setLastSavedValue] = useState(value ?? '');
+    const [saveState, setSaveState] = useState('idle');
     const [error, setError] = useState(null);
+    const fieldRef = useRef(null);
+    const timerRef = useRef(null);
+    const statusTimerRef = useRef(null);
+    const savingRef = useRef(false);
+    const mountedRef = useRef(true);
+    const pendingValueRef = useRef(null);
+    const draftRef = useRef(draft);
+    const lastSavedRef = useRef(lastSavedValue);
 
-    const cancel = () => {
-        setDraft(value);
-        setError(null);
-        setEditing(false);
+    useEffect(() => {
+        draftRef.current = draft;
+    }, [draft]);
+
+    useEffect(() => {
+        lastSavedRef.current = lastSavedValue;
+    }, [lastSavedValue]);
+
+    useEffect(() => {
+        const nextValue = value ?? '';
+        const isDirty = draftRef.current !== lastSavedRef.current;
+
+        setLastSavedValue(nextValue);
+
+        if (!isDirty || nextValue === draftRef.current) {
+            setDraft(nextValue);
+            setSaveState('idle');
+            setError(null);
+        }
+    }, [value]);
+
+    useEffect(() => {
+        if (multiline && fieldRef.current) {
+            fieldRef.current.style.height = 'auto';
+            fieldRef.current.style.height = `${fieldRef.current.scrollHeight}px`;
+        }
+    }, [draft, multiline]);
+
+    useEffect(() => () => {
+        mountedRef.current = false;
+        clearAutosaveTimer();
+        clearStatusTimer();
+
+        if (draftRef.current !== lastSavedRef.current) {
+            save(draftRef.current);
+        }
+    }, []);
+
+    const clearAutosaveTimer = () => {
+        if (timerRef.current) {
+            window.clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
     };
 
-    const submit = (event) => {
-        event.preventDefault();
-        setProcessing(true);
-        setError(null);
+    const clearStatusTimer = () => {
+        if (statusTimerRef.current) {
+            window.clearTimeout(statusTimerRef.current);
+            statusTimerRef.current = null;
+        }
+    };
 
-        onSave(draft, {
-            onError: (errors) => setError(Object.values(errors)[0] || null),
-            onFinish: () => setProcessing(false),
-            onSuccess: () => setEditing(false),
+    const save = (nextValue) => {
+        if (nextValue === lastSavedRef.current) {
+            if (mountedRef.current) {
+                setSaveState('idle');
+                setError(null);
+            }
+
+            return;
+        }
+
+        if (savingRef.current) {
+            pendingValueRef.current = nextValue;
+            return;
+        }
+
+        savingRef.current = true;
+        pendingValueRef.current = null;
+        clearStatusTimer();
+
+        if (mountedRef.current) {
+            setSaveState('saving');
+            setError(null);
+        }
+
+        onSave(nextValue, {
+            onError: (errors) => {
+                if (mountedRef.current) {
+                    setError(Object.values(errors)[0] || 'Unable to save changes.');
+                    setSaveState('error');
+                }
+            },
+            onFinish: () => {
+                savingRef.current = false;
+
+                if (pendingValueRef.current !== null && pendingValueRef.current !== nextValue) {
+                    const pendingValue = pendingValueRef.current;
+                    pendingValueRef.current = null;
+                    save(pendingValue);
+                }
+            },
+            onSuccess: () => {
+                lastSavedRef.current = nextValue;
+
+                if (mountedRef.current) {
+                    setLastSavedValue(nextValue);
+                    setSaveState(nextValue === draftRef.current ? 'saved' : 'saving');
+                    setError(null);
+                }
+
+                clearStatusTimer();
+                statusTimerRef.current = window.setTimeout(() => {
+                    if (mountedRef.current && lastSavedRef.current === draftRef.current) {
+                        setSaveState('idle');
+                    }
+                }, 1200);
+            },
         });
     };
 
-    if (editing) {
-        return (
-            <form onSubmit={submit} className="space-y-3">
-                <TextInput
-                    multiline={multiline}
-                    rows={multiline ? 6 : undefined}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    className={inputClassName}
-                    disabled={processing}
-                    autoFocus
-                />
-                {error ? <p className="text-sm text-red-300">{error}</p> : null}
-                <div className="flex flex-wrap gap-2">
-                    <Button type="submit" processing={processing}>Save</Button>
-                    <Button type="button" variant="ghost" onClick={cancel}>Cancel</Button>
-                </div>
-            </form>
-        );
-    }
+    const scheduleSave = (nextValue) => {
+        clearAutosaveTimer();
+
+        if (nextValue === lastSavedRef.current) {
+            setSaveState('idle');
+            setError(null);
+            return;
+        }
+
+        setSaveState('pending');
+        timerRef.current = window.setTimeout(() => save(nextValue), AUTOSAVE_DELAY);
+    };
+
+    const updateDraft = (event) => {
+        const nextValue = event.target.value;
+
+        setDraft(nextValue);
+        scheduleSave(nextValue);
+    };
+
+    const flushSave = () => {
+        clearAutosaveTimer();
+        save(draftRef.current);
+    };
+
+    const Field = multiline ? 'textarea' : 'input';
+    const statusText = error || {
+        saving: 'Saving...',
+        saved: 'Saved',
+    }[saveState];
+    const statusClassName = error ? 'text-red-300' : 'text-zinc-600';
+    const editableClassName = `w-full cursor-text border-0 bg-transparent p-0 text-left outline-none transition placeholder-zinc-600 hover:decoration-dotted hover:underline focus:decoration-teal-400/70 focus:underline ${displayClassName} ${inputClassName}`;
 
     return (
-        <div className="group flex items-start gap-3">
-            <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="min-w-0 flex-1 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
-            >
-                <span className={displayClassName}>{value}</span>
-            </button>
-            <button
-                type="button"
-                title={`Edit ${label}`}
-                onClick={() => setEditing(true)}
-                className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-400 transition hover:border-teal-500/40 hover:text-teal-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
-                <Edit3 className="h-4 w-4" aria-hidden="true" />
-            </button>
+        <div className="min-w-0">
+            <Field
+                ref={fieldRef}
+                aria-label={`Edit ${label}`}
+                value={draft}
+                placeholder={emptyText}
+                rows={multiline ? 1 : undefined}
+                onChange={updateDraft}
+                onBlur={flushSave}
+                className={`${editableClassName} ${multiline ? 'block resize-none overflow-hidden' : 'block'}`}
+            />
+            {statusText ? (
+                <p className={`mt-1 text-[11px] leading-4 ${statusClassName}`}>{statusText}</p>
+            ) : null}
         </div>
     );
 }
