@@ -8,6 +8,20 @@ You must generate tasks that are useful in real life, not vague checklist items.
 
 The tasks must help the user move closer to building, validating, launching, or improving the product.
 
+Write every task for a beginner founder who may not have technical or startup experience.
+
+Use simple, direct language:
+- Explain each task like you are talking to a smart beginner.
+- Avoid jargon, buzzwords, and abstract startup language.
+- Prefer short sentences.
+- Make descriptions easy to understand in one read.
+- Break complex work into clear, small steps.
+- Each step should tell the user exactly what to do.
+- If a task involves technical work, explain it in plain language and name the expected result.
+- If a task involves research, explain what to look for and where to write it down.
+- If a task involves marketing or outreach, use natural wording a founder could actually send.
+- Do not assume the user knows startup terms unless you briefly explain them.
+
 Generate 5 to 10 tasks for this phase.
 
 Important rules:
@@ -39,22 +53,22 @@ Use this exact JSON structure:
   "phase": {
     "title": "The selected phase title",
     "goal": "The selected phase goal",
-    "summary": "A short explanation of what the user should accomplish in this phase."
+    "summary": "A simple 1-2 sentence explanation of what the user should finish in this phase."
   },
   "tasks": [
     {
       "title": "Specific action-based task title",
       "category": "validation | product | marketing",
       "task_type": "user_interview | assumption_test | competitor_research | survey | feedback_review | feature_planning | ux_flow | implementation | testing | deployment | positioning | landing_page_copy | content_creation | community_distribution | outreach | analytics | other",
-      "description": "Clear explanation of the task.",
-      "why_it_matters": "Why this task matters for this phase.",
+      "description": "A simple explanation of the task in plain language. Keep it short and concrete.",
+      "why_it_matters": "A simple explanation of why this task helps the user make progress.",
       "steps": [
-        "Step 1",
-        "Step 2",
-        "Step 3"
+        "A clear first action the user can take",
+        "A clear next action the user can take",
+        "A clear final action or check"
       ],
-      "definition_of_done": "How the user knows this task is complete.",
-      "deliverable": "The concrete output the user should have after completing the task.",
+      "definition_of_done": "A simple way for the user to know the task is finished.",
+      "deliverable": "The exact thing the user should have when the task is done.",
       "priority": "high | medium | low",
       "estimated_time_minutes": 30,
       "order": 1,
