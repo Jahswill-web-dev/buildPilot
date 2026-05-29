@@ -3,16 +3,17 @@ import { Lightbulb, LogOut } from 'lucide-react';
 
 export default function AppLayout({ title, children, maxWidth = 'max-w-4xl' }) {
     const { auth, flash } = usePage().props;
+    const brandHref = auth.user ? '/ideas' : '/';
 
     return (
         <div className="min-h-screen bg-zinc-950 text-white">
             <nav className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/85 backdrop-blur-md">
                 <div className={`mx-auto flex h-14 ${maxWidth} items-center justify-between px-4 sm:px-6`}>
-                    <Link href="/" className="group flex items-center gap-2">
+                    <Link href={brandHref} className="group flex items-center gap-2">
                         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 transition group-hover:bg-teal-500">
                             <Lightbulb className="h-4 w-4 text-white" aria-hidden="true" />
                         </span>
-                        <span className="text-sm font-semibold text-white">Idea Board</span>
+                        <span className="text-sm font-semibold text-white">BuildPilot</span>
                     </Link>
 
                     <div className="flex items-center gap-1">
@@ -21,8 +22,9 @@ export default function AppLayout({ title, children, maxWidth = 'max-w-4xl' }) {
                                 <span className="mr-2 hidden max-w-36 truncate text-sm text-zinc-400 sm:block">
                                     {auth.user.name}
                                 </span>
-                                <NavLink href="/about">About</NavLink>
-                                <NavLink href="/contact">Contact</NavLink>
+                                <NavLink href="/ideas">Dashboard</NavLink>
+                                <NavLink href="/about" className="hidden sm:inline-flex">About</NavLink>
+                                <NavLink href="/contact" className="hidden sm:inline-flex">Contact</NavLink>
                                 <button
                                     type="button"
                                     id="logout-btn"
@@ -35,6 +37,8 @@ export default function AppLayout({ title, children, maxWidth = 'max-w-4xl' }) {
                             </>
                         ) : (
                             <>
+                                <NavLink href="/about" className="hidden sm:inline-flex">About</NavLink>
+                                <NavLink href="/contact" className="hidden sm:inline-flex">Contact</NavLink>
                                 <NavLink href="/login">Sign in</NavLink>
                                 <Link
                                     href="/register"
@@ -69,11 +73,11 @@ export default function AppLayout({ title, children, maxWidth = 'max-w-4xl' }) {
     );
 }
 
-function NavLink({ href, children }) {
+function NavLink({ href, children, className = '' }) {
     return (
         <Link
             href={href}
-            className="rounded-lg px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className={`rounded-lg px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 ${className}`}
         >
             {children}
         </Link>

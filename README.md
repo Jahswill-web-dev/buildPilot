@@ -1,12 +1,12 @@
-# Idea Board - Project Documentation
+# BuildPilot - Project Documentation
 
-A Laravel idea-planning app with an Inertia React frontend.
+A Laravel founder-planning app with an Inertia React frontend.
 
 ---
 
 ## What Is This Project?
 
-Idea Board is a small authenticated web application for capturing ideas, turning them into startup roadmaps, and tracking the next steps for each idea.
+BuildPilot is a founder workspace for capturing startup ideas, turning them into AI-assisted roadmaps, and tracking the next steps for each idea.
 
 The backend is Laravel. The frontend is now React through Inertia, which means Laravel still owns routing, sessions, validation, authorization, and database work, while React owns the interactive browser UI.
 
@@ -15,14 +15,14 @@ The backend is Laravel. The frontend is now React through Inertia, which means L
 ## What It Does Right Now
 
 - **Register, sign in, and log out** using Laravel session authentication.
+- **Visit a public landing page** at `/` that explains the product, shows static UI previews, and links to account creation.
 - **Create ideas** with a name and description.
 - **Generate startup roadmaps with AI in the background** when new ideas are saved, including a target user profile, problem statement, desired outcome, core features, MVP scope, roadmap phases, and editable checklist.
-- **See generation progress on the idea board** with a skeleton loading card and rotating progress text while the queued AI job runs.
+- **See generation progress on the dashboard** with a skeleton loading card and rotating progress text while the queued AI job runs.
 - **Review an Action Plan** with AI-generated phases and local placeholder tasks for now. Tasks still keep product, marketing, and validation categories.
 - **Browse roadmap phases first**, then open a phase page that can contain tasks from multiple categories.
-- **Browse task categories** for Product tasks, Marketing tasks, and Market validation, with tasks shown directly in each category tab.
-- **Open task detail modals** from phase pages and toggle task status between pending and completed.
-- **View your own ideas only** on the main board.
+- **Open task details** from phase pages and toggle task status between pending and completed.
+- **View your own ideas only** on the authenticated dashboard.
 - **Open an idea detail page** with its full description and checklist.
 - **Edit idea name and description** inline.
 - **Add, edit, toggle, and delete checklist items**.
@@ -36,11 +36,13 @@ The backend is Laravel. The frontend is now React through Inertia, which means L
 
 | Page | What You'll Find There |
 |---|---|
-| **Home (`/`)** | Auth-protected idea creation form, saved idea list, and generating-roadmap skeleton cards |
+| **Landing (`/`)** | Public founder-workspace landing page with product feature copy, static UI previews, and account CTAs |
+| **Dashboard (`/ideas`)** | Auth-protected idea creation form, saved idea list, and generating-roadmap skeleton cards |
 | **Idea detail (`/ideas/{idea}`)** | Editable idea details, generated roadmap sections, Action Plan preview, and checklist workflow |
-| **Action Plan (`/ideas/{idea}/tasks`)** | First tab shows roadmap phase cards; category tabs show product, marketing, or validation tasks directly |
+| **Action Plan (`/ideas/{idea}/tasks`)** | Roadmap phase cards with progress counts and links into phase task boards |
 | **Global task phase (`/ideas/{idea}/tasks/phases/{phaseSlug}`)** | Phase description, goal, success criteria, and pending/completed tasks across categories |
 | **Task phase (`/ideas/{idea}/tasks/{category}/{phaseSlug}`)** | Compatibility route for one category/phase task board |
+| **Task detail (`/ideas/{idea}/tasks/items/{taskId}`)** | Detailed task guidance with editable status and task fields |
 | **Login (`/login`)** | React/Inertia sign-in form |
 | **Register (`/register`)** | React/Inertia account creation form |
 | **About (`/about`)** | Short product overview |
@@ -150,6 +152,7 @@ Current verification after the AI integration check:
 
 - The app no longer uses Blade page templates for the UI. Blade is only used for the single Inertia root view.
 - The project keeps Laravel session auth, CSRF protection, redirects, validation, and middleware.
+- The public `/` route is a marketing/landing page. The authenticated dashboard lives at `/ideas`, while the route name `home` still points to the dashboard for post-login redirects.
 - AI roadmap generation uses a queued Laravel job plus a server-side LangChain.js Node bridge. The bridge returns structured profile, core features, MVP scope, phases, and checklist data. If `OPENAI_API_KEY` is missing or generation fails, the app stores local fallback roadmap data.
 - Roadmap phases are AI-generated and stored in `action_phases`. They include title, description, goal, success criteria, order, primary category, and included categories.
 - Action Plan tasks are currently generated from local fallback data, not the AI bridge. They are stored on each idea as JSON in `action_tasks` and normalized into categories, phases, and statuses for the UI. Future AI task generation is expected to generate categorized tasks per phase.

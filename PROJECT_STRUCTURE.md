@@ -184,7 +184,7 @@ resources/
 | `resources/js/app.js` | Inertia React bootstrap. Resolves React pages from `resources/js/Pages`. |
 | `resources/js/Components/` | Shared React UI components: layout, buttons, inputs, auth card, idea card, inline editor, checklist item, action task card, and action task modal. |
 | `resources/js/hooks/` | Small React hooks, including polling for ideas still in the `generating` state. |
-| `resources/js/Pages/` | React page components for Ideas, task phases, Auth, About, and Contact. |
+| `resources/js/Pages/` | React page components for the public landing page, Ideas, task phases/details, Auth, About, and Contact. |
 | `resources/js/ai/generate-roadmap.mjs` | Server-side Node/LangChain bridge used by the queued roadmap generation job. |
 | `resources/prompts/roadmap/` | Dedicated roadmap prompt files, including the phase generation prompt. |
 
@@ -208,18 +208,21 @@ routes/
 
 | Method | URI | Action |
 |---|---|---|
+| `GET` | `/` | Inertia `Landing` page |
 | `GET` | `/register` | `AuthController@showRegisterForm` |
 | `POST` | `/register` | `AuthController@register` |
 | `GET` | `/login` | `AuthController@showLoginForm` |
 | `POST` | `/login` | `AuthController@login` |
 | `POST` | `/logout` | `AuthController@logout` |
-| `GET` | `/` | `IdeaController@index` |
+| `GET` | `/ideas` | `IdeaController@index` |
 | `POST` | `/ideas` | `IdeaController@store` |
 | `GET` | `/ideas/{idea}` | `IdeaController@show` |
 | `PATCH` | `/ideas/{idea}` | `IdeaController@update` |
 | `DELETE` | `/ideas/{idea}` | `IdeaController@destroy` |
 | `GET` | `/ideas/{idea}/tasks` | `IdeaTaskController@index` |
 | `GET` | `/ideas/{idea}/tasks/phases/{phaseSlug}` | `IdeaTaskController@phaseOverview` |
+| `POST` | `/ideas/{idea}/tasks/phases/{phaseSlug}/generate` | `IdeaTaskController@generatePhaseTasks` |
+| `GET` | `/ideas/{idea}/tasks/items/{taskId}` | `IdeaTaskController@show` |
 | `GET` | `/ideas/{idea}/tasks/{category}/{phaseSlug}` | `IdeaTaskController@phase` |
 | `PATCH` | `/ideas/{idea}/tasks/{taskId}` | `IdeaTaskController@update` |
 | `POST` | `/ideas/{idea}/checklist-items` | `ChecklistItemController@store` |
@@ -250,6 +253,7 @@ tests/
 
 Feature tests cover:
 
+- Public landing page rendering and protected dashboard access.
 - Authentication pages and flows.
 - Inertia page responses for auth and idea pages.
 - Idea ownership and authorization.

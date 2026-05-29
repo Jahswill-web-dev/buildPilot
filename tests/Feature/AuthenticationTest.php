@@ -17,6 +17,20 @@ test('guest auth pages render as inertia pages', function () {
         ->assertInertia(fn (AssertableInertia $page) => $page->component('Auth/Register'));
 });
 
+test('guests are redirected from the idea dashboard', function () {
+    $this->get('/ideas')
+        ->assertRedirect('/login');
+});
+
+test('authenticated users can view the idea dashboard', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get('/ideas')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page->component('Ideas/Index'));
+});
+
 test('guests can create an account and are signed in', function () {
     $response = $this->post('/register', [
         'name' => 'Ada Lovelace',
@@ -25,7 +39,7 @@ test('guests can create an account and are signed in', function () {
         'password_confirmation' => 'password123',
     ]);
 
-    $response->assertRedirect('/');
+    $response->assertRedirect('/ideas');
     $this->assertAuthenticated();
 
     $this->assertDatabaseHas('users', [
@@ -58,7 +72,7 @@ test('users can sign in with valid credentials', function () {
         'password' => 'password123',
     ]);
 
-    $response->assertRedirect('/');
+    $response->assertRedirect('/ideas');
     $this->assertAuthenticatedAs($user);
 });
 

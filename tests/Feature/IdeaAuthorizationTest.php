@@ -213,7 +213,7 @@ test('authenticated users can create ideas attached to their account', function 
         'description' => 'Build account auth',
     ]);
 
-    $response->assertRedirect('/');
+    $response->assertRedirect('/ideas');
 
     $this->assertDatabaseHas('ideas', [
         'user_id' => $user->id,
@@ -758,6 +758,48 @@ test('completed idea tasks can be marked pending again', function () {
     expect($task['status'])->toBe('pending');
 });
 
+test('idea task text updates persist', function () {
+    $user = User::factory()->create();
+
+    $idea = Idea::create([
+        'user_id' => $user->id,
+        'name' => 'Launch planner',
+        'description' => 'A tool for planning launches.',
+        'action_tasks' => generatedActionTasks(),
+        'checklist' => [editableChecklistItem('Clarify the problem this idea solves.')],
+        'state' => 'pending',
+    ]);
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/items/task-1")
+        ->patch("/ideas/{$idea->id}/tasks/task-1", ['title' => 'Interview three target users'])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/items/task-1");
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/items/task-1")
+        ->patch("/ideas/{$idea->id}/tasks/task-1", ['description' => 'Ask simple questions about the current workflow.'])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/items/task-1");
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/items/task-1")
+        ->patch("/ideas/{$idea->id}/tasks/task-1", ['steps' => ['Write three questions', 'Ask three users', 'Save the answers']])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/items/task-1");
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/items/task-1")
+        ->patch("/ideas/{$idea->id}/tasks/task-1", ['deliverable' => 'A short notes document with user answers'])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/items/task-1");
+
+    $idea->refresh();
+    $task = collect($idea->action_tasks)->firstWhere('id', 'task-1');
+
+    expect($task['title'])->toBe('Interview three target users')
+        ->and($task['description'])->toBe('Ask simple questions about the current workflow.')
+        ->and($task['steps'])->toBe(['Write three questions', 'Ask three users', 'Save the answers'])
+        ->and($task['deliverable'])->toBe('A short notes document with user answers')
+        ->and($task['status'])->toBe('pending');
+});
+
 test('fallback action tasks can be completed for older ideas', function () {
     $user = User::factory()->create();
 
@@ -797,6 +839,18 @@ test('invalid action task updates are rejected', function () {
         ->patch("/ideas/{$idea->id}/tasks/task-1", ['status' => 'done'])
         ->assertRedirect("/ideas/{$idea->id}/tasks")
         ->assertSessionHasErrors('status');
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/items/task-1")
+        ->patch("/ideas/{$idea->id}/tasks/task-1", ['title' => ''])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/items/task-1")
+        ->assertSessionHasErrors('title');
+
+    $this->actingAs($user)
+        ->from("/ideas/{$idea->id}/tasks/items/task-1")
+        ->patch("/ideas/{$idea->id}/tasks/task-1", ['steps' => ['']])
+        ->assertRedirect("/ideas/{$idea->id}/tasks/items/task-1")
+        ->assertSessionHasErrors('steps.0');
 });
 
 test('missing action task ids return not found', function () {
@@ -873,7 +927,7 @@ test('partial generation failures are persisted and visible', function () {
     $this->actingAs($user)->post('/ideas', [
         'name' => 'Partial failure',
         'description' => 'Some generated sections fail.',
-    ])->assertRedirect('/');
+    ])->assertRedirect('/ideas');
 
     $idea = Idea::where('name', 'Partial failure')->firstOrFail();
 

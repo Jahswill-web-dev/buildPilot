@@ -74,7 +74,7 @@ export default function TaskShow({ idea, task, phase }) {
             <article className="space-y-6">
                 <header className="border-b border-white/10 pb-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                                 {categoryLabels[editableTask.category] ?? 'Product task'}
                             </p>

@@ -45,7 +45,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->route('home')->with('success', 'Welcome to Idea Board, '.$user->name.'!');
+        return redirect()->route('home')->with('success', 'Welcome to BuildPilot, '.$user->name.'!');
     }
 
     // -----------------------------------------------------------------------

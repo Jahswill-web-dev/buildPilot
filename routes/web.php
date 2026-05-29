@@ -7,6 +7,8 @@ use App\Http\Controllers\IdeaTaskController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::get('/', fn () => Inertia::render('Landing'))->name('landing');
+
 Route::middleware('guest')->group(function () {
     Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
     Route::post('/register', [AuthController::class, 'register']);
@@ -20,7 +22,7 @@ Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/', [IdeaController::class, 'index'])->name('home');
+    Route::get('/ideas', [IdeaController::class, 'index'])->name('home');
     Route::post('/ideas', [IdeaController::class, 'store'])->name('ideas.store');
     Route::get('/ideas/{idea}', [IdeaController::class, 'show'])->name('ideas.show');
     Route::patch('/ideas/{idea}', [IdeaController::class, 'update'])->name('ideas.update');

@@ -4,12 +4,12 @@ import AppLayout from '../Components/AppLayout';
 
 export default function About() {
     return (
-        <AppLayout title="About Idea Board" maxWidth="max-w-4xl">
+        <AppLayout title="About BuildPilot" maxWidth="max-w-4xl">
             <Head title="About us" />
             <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr]">
                 <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
                     <p className="text-sm leading-6 text-zinc-300">
-                        Idea Board helps you capture a rough thought, shape it into a practical checklist, and keep the next action visible.
+                        BuildPilot helps you capture a rough thought, shape it into a practical checklist, and keep the next action visible.
                     </p>
                     <p className="mt-4 text-sm leading-6 text-zinc-400">
                         The app stays intentionally quiet: one place for the idea, the reasoning, and the work needed to move it forward.

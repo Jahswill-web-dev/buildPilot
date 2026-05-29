@@ -78,7 +78,8 @@ resources/views/app.blade.php
 It provides the HTML shell for Inertia and loads Vite assets.
 
 ### React `^19.2`
-React powers the client-side page components, forms, inline editing, checklist interactions, Action Plan category/phase navigation, task modals, and reusable UI components.
+React powers the client-side page components, forms, inline editing, checklist interactions, Action Plan phase navigation, task detail pages, and reusable UI components.
+It also renders the public BuildPilot landing page with static product UI mockups that mirror the app's dashboard, roadmap, and task screens.
 
 ### `@inertiajs/react` `^3.2`
 The React adapter for Inertia. It provides:
@@ -152,6 +153,7 @@ Improves terminal error output for tests and artisan commands.
 
 | Variable | Value | Purpose |
 |---|---|---|
+| `APP_NAME` | `BuildPilot` | Application name used by Laravel config, mail/log defaults, and Vite-exposed app naming |
 | `APP_ENV` | `local` | Local development mode |
 | `DB_CONNECTION` | `sqlite` | SQLite database driver |
 | `SESSION_DRIVER` | `database` | Database-backed sessions |

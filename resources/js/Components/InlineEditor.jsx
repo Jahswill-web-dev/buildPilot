@@ -46,11 +46,11 @@ export default function InlineEditor({
     }, [value]);
 
     useEffect(() => {
-        if (multiline && fieldRef.current) {
+        if (fieldRef.current) {
             fieldRef.current.style.height = 'auto';
             fieldRef.current.style.height = `${fieldRef.current.scrollHeight}px`;
         }
-    }, [draft, multiline]);
+    }, [draft]);
 
     useEffect(() => () => {
         mountedRef.current = false;
@@ -160,7 +160,6 @@ export default function InlineEditor({
         save(draftRef.current);
     };
 
-    const Field = multiline ? 'textarea' : 'input';
     const statusText = error || {
         saving: 'Saving...',
         saved: 'Saved',
@@ -169,16 +168,16 @@ export default function InlineEditor({
     const editableClassName = `w-full cursor-text border-0 bg-transparent p-0 text-left outline-none transition placeholder-zinc-600 hover:decoration-dotted hover:underline focus:decoration-teal-400/70 focus:underline ${displayClassName} ${inputClassName}`;
 
     return (
-        <div className="min-w-0">
-            <Field
+        <div className="min-w-0 w-full">
+            <textarea
                 ref={fieldRef}
                 aria-label={`Edit ${label}`}
                 value={draft}
                 placeholder={emptyText}
-                rows={multiline ? 1 : undefined}
+                rows={1}
                 onChange={updateDraft}
                 onBlur={flushSave}
-                className={`${editableClassName} ${multiline ? 'block resize-none overflow-hidden' : 'block'}`}
+                className={`${editableClassName} block min-h-[1lh] resize-none overflow-hidden whitespace-pre-wrap`}
             />
             {statusText ? (
                 <p className={`mt-1 text-[11px] leading-4 ${statusClassName}`}>{statusText}</p>

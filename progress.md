@@ -4,6 +4,96 @@ A running technical record of every feature built, what files were changed, and 
 
 ---
 
+## Feature 8 - BuildPilot Public Landing Page and Dashboard Route Split
+**Date:** 2026-05-28
+**Status:** Complete
+
+---
+
+### Overview
+
+Added a public founder-workspace landing page for BuildPilot and moved the authenticated idea dashboard from `/` to `/ideas`. The `home` route name now points to `/ideas` so register, login, idea creation, and idea deletion redirects still land on the dashboard.
+
+The current entry flow is:
+
+```text
+Guest or signed-in user visits /
+  -> render public Landing Inertia page
+  -> CTA links to /register, /login, or /ideas depending on auth state
+
+Authenticated user visits /ideas
+  -> render idea dashboard
+  -> create and track generated roadmaps
+```
+
+---
+
+### What Was Built
+
+#### 1. Public landing page
+
+Added `resources/js/Pages/Landing.jsx`.
+
+The page positions BuildPilot as a founder workspace and includes:
+
+- hero copy with create-account/sign-in CTAs
+- static UI mockups for idea capture and roadmap generation
+- feature cards for capture, AI roadmap context, inline editing, MVP scope, phase planning, and private accounts
+- generated roadmap preview sections
+- Action Plan phase and task board previews
+- final account creation CTA
+
+#### 2. Route changes
+
+Updated `routes/web.php`:
+
+- `GET /` now renders the public `Landing` page.
+- `GET /ideas` now renders `IdeaController@index` and keeps the `home` route name.
+- Existing protected idea, task, and checklist routes continue to live under `/ideas`.
+
+#### 3. Navigation and branding
+
+Updated the shared React layout so:
+
+- guests see public navigation and auth CTAs
+- signed-in users see a dashboard link, account name, About/Contact links, and logout
+- the brand name is now `BuildPilot`
+
+Updated app title and environment defaults:
+
+- `resources/js/app.js`
+- `resources/views/app.blade.php`
+- `.env`
+- `.env.example`
+
+#### 4. Tests
+
+Updated feature tests for:
+
+- public `/` landing page rendering
+- guest redirect from `/ideas`
+- authenticated dashboard access at `/ideas`
+- login/register redirects to `/ideas`
+- idea creation redirects to `/ideas`
+
+---
+
+### Verification
+
+```text
+npm run build
+  -> Passed
+
+Browser check at http://php_project.test/
+  -> Desktop and mobile landing page loaded
+  -> Mobile had no horizontal overflow
+  -> Product mockup appeared in the first viewport
+```
+
+PHP tests could not be run from the current shell because `php` and `composer` were not available on PATH.
+
+---
+
 ## Feature 7 - Async Roadmap Generation UX
 **Date:** 2026-05-27
 **Status:** Complete
@@ -20,7 +110,7 @@ The current generation flow is:
 POST /ideas
   -> create idea with state = generating
   -> dispatch GenerateIdeaRoadmap
-  -> redirect to /
+  -> redirect to /ideas
 
 queue worker
   -> run RoadmapGenerator
@@ -67,7 +157,7 @@ Added:
 - `resources/js/Components/GenerationProgressText.jsx`
 - `resources/js/hooks/useGeneratingIdeasPoll.js`
 
-The idea board now shows a dedicated skeleton loading card for generating ideas. The progress copy rotates through estimated messages such as understanding the idea, defining the target user, shaping MVP scope, planning phases, and preparing the roadmap.
+The dashboard now shows a dedicated skeleton loading card for generating ideas. The progress copy rotates through estimated messages such as understanding the idea, defining the target user, shaping MVP scope, planning phases, and preparing the roadmap.
 
 #### 4. Polling
 
@@ -101,7 +191,7 @@ Async generation requires a queue worker:
 php artisan queue:work
 ```
 
-The existing `composer dev` script already starts `php artisan queue:listen --tries=1` alongside Laravel and Vite.
+The existing `composer dev` script already starts `php artisan queue:work --tries=1 --timeout=180` alongside Laravel and Vite.
 
 ---
 
@@ -297,9 +387,9 @@ The phase page shows the tasks for one category/phase in Pending and Completed c
 Added shared task UI:
 
 - `resources/js/Components/ActionTaskRow.jsx`
-- `resources/js/Components/ActionTaskModal.jsx`
+- `resources/js/Pages/Ideas/TaskShow.jsx`
 
-The modal shows task category, phase, priority, status, detail copy, next action guidance, and a status update button.
+The task detail page shows task category, phase, priority, status, detail copy, next action guidance, editable task fields, and a status update button.
 
 ---
 
@@ -560,7 +650,7 @@ Updated the idea list:
 #### 5. Detail page - `resources/views/ideas/show.blade.php` *(new)*
 
 Added a new read-only detail page for one idea. It shows:
-- Back link to the idea board.
+- Back link to the dashboard.
 - Status badge and created date.
 - Idea name.
 - Full idea description.
@@ -574,7 +664,7 @@ The page uses the existing dark Tailwind design system and the shared `<x-layout
 #### 6. Feature tests - `tests/Feature/IdeaAuthorizationTest.php` *(updated)*
 
 Updated existing tests for the new create payload and added coverage for the new detail flow:
-- Guests are redirected away from the idea board, create route, and idea detail route.
+- Guests are redirected away from the dashboard, create route, and idea detail route.
 - Authenticated users only see their own ideas.
 - Authenticated users can create ideas with `name`, `description`, and stored generic checklist.
 - Authenticated users can view their own idea checklist page.
@@ -590,10 +680,10 @@ Authenticated user submits idea form
   -> POST /ideas
   -> validate name + description
   -> create Idea with pending state and generic checklist
-  -> redirect back to /
+  -> redirect back to /ideas
 
-Authenticated user views idea board
-  -> GET /
+Authenticated user views dashboard
+  -> GET /ideas
   -> load only current user's ideas
   -> render each idea as a clickable list item
 
@@ -638,11 +728,11 @@ A dedicated controller with three logical groups:
 
 **Register:**
 - `showRegisterForm()` — returns the `auth.register` view.
-- `register(Request $request)` — validates name, email (unique), and password (with confirmation and Laravel's `Password::min(8)` rule). On success, calls `User::create()` (password is auto-hashed by the `hashed` cast on the User model), immediately logs the new user in via `Auth::login($user)`, and redirects to `/` with a flash success message.
+- `register(Request $request)` — validates name, email (unique), and password (with confirmation and Laravel's `Password::min(8)` rule). On success, calls `User::create()` (password is auto-hashed by the `hashed` cast on the User model), immediately logs the new user in via `Auth::login($user)`, and redirects to `/ideas` with a flash success message.
 
 **Login:**
 - `showLoginForm()` — returns the `auth.login` view.
-- `login(Request $request)` — validates credentials, calls `Auth::attempt($credentials, $remember)` where `$remember` is derived from a boolean checkbox. On success, calls `$request->session()->regenerate()` to prevent session fixation attacks, then redirects to the intended page (or `/`). On failure, returns back with the email pre-filled and a field-specific error on `email`.
+- `login(Request $request)` — validates credentials, calls `Auth::attempt($credentials, $remember)` where `$remember` is derived from a boolean checkbox. On success, calls `$request->session()->regenerate()` to prevent session fixation attacks, then redirects to the intended page (or `/ideas`). On failure, returns back with the email pre-filled and a field-specific error on `email`.
 
 **Logout:**
 - `logout(Request $request)` — calls `Auth::logout()`, then `session()->invalidate()` and `session()->regenerateToken()` to fully destroy the session and rotate the CSRF token. Redirects to `/login` with a flash message.
@@ -683,7 +773,7 @@ The shared layout component was fully rebuilt:
 - **Flash message zone:** After the nav, renders a styled green success banner when `session('success')` is set.
 - **Background changed** from `bg-gray-700` to `bg-gray-900` for a deeper, more polished dark theme.
 - **Max-width container** applied consistently to nav and main content (`max-w-3xl mx-auto`).
-- **Default title prop** changed from `'laracasts'` to `'Idea Board'`.
+- **Default title prop** changed from `'laracasts'` to `'BuildPilot'`.
 
 ---
 
@@ -691,7 +781,7 @@ The shared layout component was fully rebuilt:
 
 The routes file was completely restructured into three logical groups:
 
-**Guest-only group** (`middleware('guest')`) — redirects to `/` if already logged in:
+**Guest-only group** (`middleware('guest')`) — redirects authenticated users away from auth pages:
 ```
 GET  /register  → AuthController@showRegisterForm
 POST /register  → AuthController@register
@@ -701,7 +791,7 @@ POST /login     → AuthController@login
 
 **Auth-protected group** (`middleware('auth')`) — redirects to `/login` if not authenticated:
 ```
-GET    /          → Fetches current user's ideas (all statuses), renders ideas view
+GET    /ideas     → Fetches current user's ideas (all statuses), renders ideas view
 POST   /ideas     → Validates input, creates Idea with user_id = auth()->id(), redirects with flash
 DELETE /ideas/{idea} → Checks ownership (403 if not owner), deletes idea, redirects with flash
 ```
@@ -710,6 +800,7 @@ DELETE /ideas/{idea} → Checks ownership (403 if not owner), deletes idea, redi
 ```
 GET /about    → about view
 GET /contact  → contact view
+GET /         → public landing page
 ```
 
 Key improvements over original:
@@ -786,17 +877,17 @@ Fully rebuilt the home/ideas page:
 
 ```
 Guest visits /
-  → Redirected to /login  (auth middleware)
+  → Sees the public BuildPilot landing page
 
 Guest visits /register
   → Sees registration form
-  → Submits: validates → creates User → Auth::login() → redirect /
+  → Submits: validates → creates User → Auth::login() → redirect /ideas
 
 Guest visits /login
   → Sees login form
-  → Submits: Auth::attempt() → session regenerate → redirect /
+  → Submits: Auth::attempt() → session regenerate → redirect /ideas
 
-Authenticated user visits /
+Authenticated user visits /ideas
   → Sees their own ideas
   → Can submit new ideas (POST /ideas)
   → Can delete their ideas (DELETE /ideas/{id})
