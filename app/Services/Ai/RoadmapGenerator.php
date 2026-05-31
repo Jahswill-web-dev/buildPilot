@@ -29,6 +29,8 @@ class RoadmapGenerator
     public function generate(string $ideaTitle, string $ideaDescription): array
     {
         if (! config('services.openai.api_key')) {
+            Log::warning('AI roadmap generation skipped because OPENAI_API_KEY is not configured.');
+
             return $this->fallback();
         }
 

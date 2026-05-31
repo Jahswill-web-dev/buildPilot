@@ -8,6 +8,7 @@ use App\Services\ActionTasks\ActionTasks;
 use App\Services\Ai\PhaseTaskGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -195,7 +196,13 @@ class IdeaTaskController extends Controller
 
         try {
             $generatedTasks = $this->phaseTaskGenerator->generate($idea, $phase, $completedTasks);
-        } catch (Throwable) {
+        } catch (Throwable $error) {
+            Log::warning('AI phase task generation failed.', [
+                'idea_id' => $idea->id,
+                'phase_slug' => $phaseSlug,
+                'message' => $error->getMessage(),
+            ]);
+
             return redirect()
                 ->back()
                 ->withErrors(['tasks' => 'Task generation failed. Try again in a moment.']);
